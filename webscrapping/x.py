@@ -13,8 +13,6 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver import Chrome
 
-from parameters import MAIL, USERNAME, PASSWORD
-
 
 class TwitterScrapper:
     """
@@ -235,7 +233,8 @@ class TwitterScrapper:
 
         if curr_position == last_position:
             if scroll_attempt < max_attempts:
-                print(f"max scroll attemps reached: {max_attempts}")
+                if self.verbose:
+                    print(f"max scroll attemps reached: {max_attempts}")
                 end_of_scroll_region = True
             else:
                 self.__scroll_down_page(
@@ -337,6 +336,8 @@ class TwitterScrapper:
         self._scroll_and_save(driver, save_path)
 
         sleep(120)
+
+        return "finish"
 
 
 if __name__ == "__main__":
