@@ -1,5 +1,5 @@
 import csv
-from datetime import date
+from datetime import date, datetime
 import os
 import random
 import urllib
@@ -23,16 +23,12 @@ class TwitterScrapper:
         self,
         research: str = "Elon musk",
         link: str = "https://twitter.com/i/flow/login",
-
         start_date: date = None,
         end_date: date = None,
-
         mail=None,
         username=None,
         password=None,
-
         verbose: bool = False,
-
     ) -> None:
         self.research = research
         self.link = link
@@ -248,9 +244,7 @@ class TwitterScrapper:
 
         return last_position, end_of_scroll_region
 
-    def __save_tweet_data_to_csv(
-        self, records, save_path: os.PathLike | str
-    ):
+    def __save_tweet_data_to_csv(self, records, save_path: os.PathLike | str):
         """
         Saving the data collected into the
         specified save path with csv format
@@ -267,9 +261,7 @@ class TwitterScrapper:
         ]
 
         dire_path = os.path.dirname(save_path)
-        file_path = (
-            f'{save_path}webscraped_{"_".join(self.research.split())}.csv'
-        )
+        file_path = f'{save_path}webscraped_{"_".join(self.research.split())}.csv'
         first = False
         if not os.path.exists(file_path):
             os.makedirs(dire_path, exist_ok=True)
@@ -341,32 +333,73 @@ class TwitterScrapper:
 
 
 if __name__ == "__main__":
+    import os
+    from time import sleep, time
+
     import pandas as pd
+
+    from parameters import (
+        MAIL_1,
+        USERNAME_1,
+        PASSWORD_1,
+        MAIL_2,
+        USERNAME_2,
+        PASSWORD_2,
+        MAIL_3,
+        USERNAME_3,
+        PASSWORD_3,
+    )
 
     RESEARCH = "bp plc"
     SAVE_PATH = "./../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
-    if os.path.exists(FILE_PATH):
-        df = pd.read_csv(FILE_PATH)
-        minimale_date = pd.to_datetime(df["PostDate"]).min().date()
+    # df = pd.read_csv(FILE_PATH)
+    # observations = df.shape[0]
 
-        if pd.notna(minimale_date):
-            END_DATE = str(minimale_date)
-        else:
-            END_DATE = None
-    else:
-        END_DATE = None
+    iteration = 1
 
-    print(f'END_DATE: {END_DATE}')
+    accounts = [
+        (MAIL_1, USERNAME_1, PASSWORD_1),
+        (MAIL_2, USERNAME_2, PASSWORD_2),
+        (MAIL_3, USERNAME_3, PASSWORD_3),
+    ]
+    while True:
+        start_time = time()
+        for MAIL, USERNAME, PASSWORD in accounts:
+            print(f"iteration: {iteration}")
+            print(f"Current time: {datetime.now().time()}")
 
-    ts = TwitterScrapper(
-            research="bp plc",
-            mail=MAIL,
-            username=USERNAME,
-            password=PASSWORD,
-            # start_date=,
-            end_date=END_DATE,
-            verbose=True
-        )
-    ts.launch_webscrapping(save_path="./../data/new_webscrapping/")
+            if os.path.exists(FILE_PATH):
+                df = pd.read_csv(FILE_PATH)
+                minimale_date = pd.to_datetime(df["PostDate"]).min().date()
+                observations = df.shape[0]
+
+                print(f"Number of observations: {observations}")
+
+                if pd.notna(minimale_date):
+                    END_DATE = str(minimale_date)
+                else:
+                    END_DATE = None
+            else:
+                END_DATE = None
+
+            print(f"END_DATE: {END_DATE}")
+
+            ts = TwitterScrapper(
+                research=RESEARCH,
+                mail=MAIL,
+                username=USERNAME,
+                password=PASSWORD,
+                # start_date=,
+                end_date=END_DATE,
+                verbose=False,
+            )
+
+            ts.launch_webscrapping(save_path=SAVE_PATH)
+            iteration += 1
+
+        passed_time = time() - start_time
+        if passed_time < 1200:
+            print(f"Need to sleep: {(1200-passed_time)/60} min")
+            sleep(1200 - passed_time)
