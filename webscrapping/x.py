@@ -336,21 +336,24 @@ if __name__ == "__main__":
     import os
     from time import sleep, time
 
+    from dotenv import load_dotenv
     import pandas as pd
 
-    from parameters import (
-        MAIL_1,
-        USERNAME_1,
-        PASSWORD_1,
-        MAIL_2,
-        USERNAME_2,
-        PASSWORD_2,
-        MAIL_3,
-        USERNAME_3,
-        PASSWORD_3,
-    )
+    load_dotenv()
+    MAIL_1 = os.getenv('MAIL_1')
+    USERNAME_1 = os.getenv('USERNAME_1')
+    PASSWORD_1 = os.getenv('PASSWORD_1')
 
-    RESEARCH = "bp plc"
+    MAIL_2 = os.getenv('MAIL_2')
+    USERNAME_2 = os.getenv('USERNAME_2')
+    PASSWORD_2 = os.getenv('PASSWORD_2')
+
+    MAIL_3 = os.getenv('MAIL_3')
+    USERNAME_3 = os.getenv('USERNAME_3')
+    PASSWORD_3 = os.getenv('PASSWORD_3')
+
+    # RESEARCH = "bp plc"
+    RESEARCH = "stora enso"
     SAVE_PATH = "./../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
