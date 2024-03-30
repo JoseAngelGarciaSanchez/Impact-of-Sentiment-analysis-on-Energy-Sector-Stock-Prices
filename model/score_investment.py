@@ -1,11 +1,53 @@
 import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 
-np.random.seed(42)  # Pour la reproductibilité
+from parameters import company_to_stock_dict
+
+
+np.random.seed(42)
 pd.options.mode.chained_assignment = None
+
+
+class Preprocessing:
+    def __init__(self) -> None:
+        pass
+
+    def process_analysed_tweets(self, df: pd.DataFrame):
+        # Format PostDate to datetime
+        df["PostDate"] = pd.to_datetime(df["PostDate"])
+
+        # drop rows with NaN values in the "PostDate" column
+        df.dropna(subset=["PostDate"], inplace=True)
+
+        # add a column for the year and month
+        df["day"] = df["PostDate"].dt.day
+        df["month"] = df["PostDate"].dt.month
+        df["year"] = df["PostDate"].dt.year
+
+        # formatting sentiments
+        df["sentiment"] = df["sentiment"].map({"Bullish": 1, "Bearish": -1})
+        df["sentiment_base"] = df["sentiment_base"].map(
+            {"positive": 1, "neutral": 0, "negative": -1}
+        )
+        return df
+
+    def process_returns(self, df: pd.DataFrame):
+        df = df / 100
+
+        # Week-end
+        nan_mask = df.isna().all(axis=1)
+        df = df.loc[~nan_mask, :]
+        return df
+
+    def process(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame):
+        analysed_tweets = self.process_analysed_tweets(analysed_tweets)
+        returns = self.process_returns(returns)
+
+        return analysed_tweets, returns
 
 
 class ModelEvaluationMonth:
@@ -369,24 +411,9 @@ class ModelEvaluationMonth:
 
 
 class DailyModelEvaluation:
-    def __init__(
-        self, model_results_path: os.PathLike, returns_path: os.PathLike
-    ) -> None:
-        self.MODEL_RESULTS_PATH = model_results_path
-        self.DAILY_RETURNS_PATH = returns_path
-
-    def _load_process_raw_data(self):
-        self.df_returns = pd.read_excel(self.DAILY_RETURNS_PATH, index_col=0)
-        self.df_model_results = pd.read_csv(self.MODEL_RESULTS_PATH)
-
-        # Applying preprocessing
-        self.df_model_results = self.__format_model_results(self.df_model_results)
-        # Convert from percentage to taux
-        self.df_returns = self.df_returns / 100
-
-        # Week-end
-        nan_mask = self.df_returns.isna().all(axis=1)
-        self.df_returns = self.df_returns.loc[~nan_mask, :]
+    def __init__(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame) -> None:
+        self.analysed_tweets = analysed_tweets
+        self.df_returns = returns
 
     def _correlation_by_company(
         self,
@@ -394,61 +421,10 @@ class DailyModelEvaluation:
         """
         by : day, month, year
         """
-        self.convert_dict = self.__mapping()
 
-        self.positive_daily_ratios = self.__group_model_results(
-            df=self.df_model_results
-        )
+        self.positive_daily_ratios = self.__group_model_results(df=self.analysed_tweets)
 
         self.adjusted_returns = self.__adjust_returns_with_company_names()
-
-    def __format_model_results(self, df):
-        # Format PostDate to datetime
-        df["PostDate"] = pd.to_datetime(df["PostDate"])
-
-        # drop rows with NaN values in the "PostDate" column
-        df.dropna(subset=["PostDate"], inplace=True)
-
-        # add a column for the year and month
-        df["day"] = df["PostDate"].dt.day
-        df["month"] = df["PostDate"].dt.month
-        df["year"] = df["PostDate"].dt.year
-
-        # formatting sentiments
-        df["sentiment"] = df["sentiment"].map({"Bullish": 1, "Bearish": -1})
-        df["sentiment_base"] = df["sentiment_base"].map(
-            {"positive": 1, "neutral": 0, "negative": -1}
-        )
-        return df
-
-    def __mapping(self):
-        """cumsum for all stocks"""
-        df_columns_list = [
-            "BP PLC",
-            "FMC CORP",
-            "WEYERHAEUSER CO",
-            "ALTAGAS LTD",
-            "BHP GROUP",
-            "INTERNATIONAL PAPER CO",
-            "S&P 500 ENERGY INDEX",
-            "STORA ENSO",
-            "WILMAR INTERNATIONAL LTD",
-            "TOTALENERGIES SE",
-        ]
-
-        stocklist = [
-            "BP/ LN Equity",
-            "FMC US Equity",
-            "WY US Equity",
-            "ALA CT Equity",
-            "BHP US Equity",
-            "IP US Equity",
-            "S5ENRS Equity",
-            "STERV FH Equity",
-            "WIL SP Equity",
-            "TTE FP Equity",
-        ]
-        return {k: v for k, v in zip(df_columns_list, stocklist)}
 
     def __group_model_results(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -507,13 +483,13 @@ class DailyModelEvaluation:
 
         selected_columns = [
             value
-            for value in self.convert_dict.values()
+            for value in company_to_stock_dict.values()
             if value in self.df_returns.columns
         ]
         selected_returns = self.df_returns.loc[:, selected_columns]
 
         selected_returns.rename(
-            columns={v: k for k, v in self.convert_dict.items()}, inplace=True
+            columns={v: k for k, v in company_to_stock_dict.items()}, inplace=True
         )
         selected_returns = selected_returns.reset_index().rename(
             columns={"index": "date"}
@@ -526,7 +502,7 @@ class DailyModelEvaluation:
         # print(self.positive_daily_ratios)
         positive_ratios_by_day = self.positive_daily_ratios.copy()
 
-        # positive_ratios_by_day = self.__group_model_results(self.df_model_results)
+        # positive_ratios_by_day = self.__group_model_results(self.analysed_tweets)
         date_index = positive_ratios_by_day["yearmonthday"].unique().tolist()
         companies = positive_ratios_by_day["company"].unique().tolist()
 
@@ -698,7 +674,6 @@ class DailyModelEvaluation:
                 plt.close()
 
     def launch(self):
-        self._load_process_raw_data()
         self._correlation_by_company()
         self.short_or_long()
         self.evaluate_model_accuracy()
@@ -707,7 +682,14 @@ class DailyModelEvaluation:
 
 
 if __name__ == "__main__":
-    path = "./../data/data_model/all_data.csv"
-    returns_path = "./../data/stocks_daily_data.xlsx"
-    model_evaluator = DailyModelEvaluation(path, returns_path)
+    WEBSCRAPPED_DATA_PATH = "./../data/data_model/all_data.csv"
+    DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_daily_data.xlsx"
+
+    analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
+    df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
+
+    preprocessor = Preprocessing()
+    grouped_analysed_tweets, df_returns = preprocessor.process(analysed_tweets, df_returns)
+
+    model_evaluator = DailyModelEvaluation(grouped_analysed_tweets, df_returns)
     model_evaluator.launch()
