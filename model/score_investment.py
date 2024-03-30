@@ -20,8 +20,14 @@ class ModelEvaluationMonth:
         self.df = pd.read_csv(self.path)
 
     def formatting(self) -> None:
-        """Formatting the dates and encoding sentiment columns positive or bullish -> 1, negative or bearish -> -1, neutral -> 0"""
+        """
+        Formatting the dates and encoding sentiment columns
+        positive or bullish -> 1,
+        negative or bearish -> -1,
+        neutral -> 0
+        """
 
+        # Convert PostDate to datetime
         self.df["PostDate"] = self.df["PostDate"].astype(str).apply(lambda x: x[:-3])
         self.df["PostDate"] = pd.to_datetime(self.df["PostDate"])
 
@@ -58,9 +64,11 @@ class ModelEvaluationMonth:
         selected_columns = [col for col in self.returns.columns if col != except_column]
         result = self.returns[selected_columns].apply(lambda x: x / 100 + 1, axis=1)
         self.returns = pd.concat([self.returns[except_column], result], axis=1)
+
         self.returns["DATE"] = pd.to_datetime(self.returns["DATE"])
         self.returns["year"] = self.returns["DATE"].dt.year
         self.returns["month"] = self.returns["DATE"].dt.month
+
         self.returns["yearmonth"] = (
             self.returns["year"].astype(str)
             + "-"
@@ -70,9 +78,11 @@ class ModelEvaluationMonth:
         self.returns_on_pct = pd.concat(
             [self.returns[except_column], result_on_pct], axis=1
         )
+
         self.returns_on_pct["DATE"] = pd.to_datetime(self.returns["DATE"])
         self.returns_on_pct["year"] = self.returns_on_pct["DATE"].dt.year
         self.returns_on_pct["month"] = self.returns_on_pct["DATE"].dt.month
+
         self.returns_on_pct["yearmonth"] = (
             self.returns_on_pct["year"].astype(str)
             + "-"
@@ -292,7 +302,7 @@ class ModelEvaluationMonth:
 
     def visualize_courbe(self, SAVE_PATH: str | os.PathLike):
 
-        os.makedirs(f'{SAVE_PATH}/correlation_curves/', exist_ok=True)
+        os.makedirs(f"{SAVE_PATH}/correlation_curves/", exist_ok=True)
 
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
@@ -342,7 +352,9 @@ class ModelEvaluationMonth:
 
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
-                plt.savefig(f"{SAVE_PATH}/correlation_curves/{stock}_smoothed_signal_vs_market_return.png")
+                plt.savefig(
+                    f"{SAVE_PATH}/correlation_curves/{stock}_smoothed_signal_vs_market_return.png"
+                )
                 plt.close()
 
     def launch(self):
@@ -353,7 +365,7 @@ class ModelEvaluationMonth:
         self.adjust_returns_with_company_names()
         self.evaluate_model_accuracy()
         self.compute_signal_market_correlation()
-        self.visualize_courbe(SAVE_PATH='./../data/')
+        self.visualize_courbe(SAVE_PATH="./../data/")
 
 
 class DailyModelEvaluation:
