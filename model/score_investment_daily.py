@@ -310,7 +310,7 @@ class DailyModelEvaluation:
 
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
-                plt.savefig(f"{stock}_smoothed_signal_vs_market_return.png")
+                plt.savefig(f"./visualization/{stock}_smoothed_signal_vs_market_return.png")
                 plt.close()
 
     def launch(self):

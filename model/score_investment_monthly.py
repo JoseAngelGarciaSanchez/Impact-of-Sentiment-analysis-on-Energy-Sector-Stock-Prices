@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 
-from parameters import company_to_stock_dict
-
 np.random.seed(42)
 pd.options.mode.chained_assignment = None
 
