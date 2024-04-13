@@ -352,8 +352,7 @@ if __name__ == "__main__":
     USERNAME_3 = os.getenv('USERNAME_3')
     PASSWORD_3 = os.getenv('PASSWORD_3')
 
-    # RESEARCH = "bp plc"
-    RESEARCH = "stora enso"
+    RESEARCH = "totalenergies se"
     SAVE_PATH = "./../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
