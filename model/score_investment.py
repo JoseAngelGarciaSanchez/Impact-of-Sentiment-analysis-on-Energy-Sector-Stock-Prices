@@ -1,11 +1,53 @@
 import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 
-np.random.seed(42)  # Pour la reproductibilité
+from parameters import company_to_stock_dict
+
+
+np.random.seed(42)
 pd.options.mode.chained_assignment = None
+
+
+class Preprocessing:
+    def __init__(self) -> None:
+        pass
+
+    def process_analysed_tweets(self, df: pd.DataFrame):
+        # Format PostDate to datetime
+        df["PostDate"] = pd.to_datetime(df["PostDate"])
+
+        # drop rows with NaN values in the "PostDate" column
+        df.dropna(subset=["PostDate"], inplace=True)
+
+        # add a column for the year and month
+        df["day"] = df["PostDate"].dt.day
+        df["month"] = df["PostDate"].dt.month
+        df["year"] = df["PostDate"].dt.year
+
+        # formatting sentiments
+        df["sentiment"] = df["sentiment"].map({"Bullish": 1, "Bearish": -1})
+        df["sentiment_base"] = df["sentiment_base"].map(
+            {"positive": 1, "neutral": 0, "negative": -1}
+        )
+        return df
+
+    def process_returns(self, df: pd.DataFrame):
+        df = df / 100
+
+        # Week-end
+        nan_mask = df.isna().all(axis=1)
+        df = df.loc[~nan_mask, :]
+        return df
+
+    def process(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame):
+        analysed_tweets = self.process_analysed_tweets(analysed_tweets)
+        returns = self.process_returns(returns)
+
+        return analysed_tweets, returns
 
 
 class ModelEvaluationMonth:
@@ -20,8 +62,14 @@ class ModelEvaluationMonth:
         self.df = pd.read_csv(self.path)
 
     def formatting(self) -> None:
-        """Formatting the dates and encoding sentiment columns positive or bullish -> 1, negative or bearish -> -1, neutral -> 0"""
+        """
+        Formatting the dates and encoding sentiment columns
+        positive or bullish -> 1,
+        negative or bearish -> -1,
+        neutral -> 0
+        """
 
+        # Convert PostDate to datetime
         self.df["PostDate"] = self.df["PostDate"].astype(str).apply(lambda x: x[:-3])
         self.df["PostDate"] = pd.to_datetime(self.df["PostDate"])
 
@@ -58,9 +106,11 @@ class ModelEvaluationMonth:
         selected_columns = [col for col in self.returns.columns if col != except_column]
         result = self.returns[selected_columns].apply(lambda x: x / 100 + 1, axis=1)
         self.returns = pd.concat([self.returns[except_column], result], axis=1)
+
         self.returns["DATE"] = pd.to_datetime(self.returns["DATE"])
         self.returns["year"] = self.returns["DATE"].dt.year
         self.returns["month"] = self.returns["DATE"].dt.month
+
         self.returns["yearmonth"] = (
             self.returns["year"].astype(str)
             + "-"
@@ -70,9 +120,11 @@ class ModelEvaluationMonth:
         self.returns_on_pct = pd.concat(
             [self.returns[except_column], result_on_pct], axis=1
         )
+
         self.returns_on_pct["DATE"] = pd.to_datetime(self.returns["DATE"])
         self.returns_on_pct["year"] = self.returns_on_pct["DATE"].dt.year
         self.returns_on_pct["month"] = self.returns_on_pct["DATE"].dt.month
+
         self.returns_on_pct["yearmonth"] = (
             self.returns_on_pct["year"].astype(str)
             + "-"
@@ -289,39 +341,63 @@ class ModelEvaluationMonth:
         # Print the updated correlation results
         for company, corr_value in correlation_results.items():
             print(f"{company} Signal-Market Correlation: {corr_value}")
-            
-    def visualize_courbe(self):        
+
+    def visualize_courbe(self, SAVE_PATH: str | os.PathLike):
+
+        os.makedirs(f"{SAVE_PATH}/correlation_curves/", exist_ok=True)
+
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
         )
 
-        unique_stocks = set(col.split("_buysell")[0] for col in evaluation_df.columns if "_buysell" in col)
-        
+        unique_stocks = set(
+            col.split("_buysell")[0]
+            for col in evaluation_df.columns
+            if "_buysell" in col
+        )
+
         for stock in unique_stocks:
             buysell_col = stock + "_buysell"
             market_col = stock + "_market"
-            
-            if buysell_col in evaluation_df.columns and market_col in evaluation_df.columns:
+
+            if (
+                buysell_col in evaluation_df.columns
+                and market_col in evaluation_df.columns
+            ):
                 fig, ax1 = plt.subplots(figsize=(14, 7))
 
-                color = 'tab:blue'
-                ax1.set_xlabel('Date')
-                ax1.set_ylabel('Signal', color=color)
+                color = "tab:blue"
+                ax1.set_xlabel("Date")
+                ax1.set_ylabel("Signal", color=color)
                 smoothed_signal = evaluation_df[buysell_col]
-                ax1.plot(evaluation_df.index, smoothed_signal, label='Smoothed Signal', color=color, alpha=0.7)
-                ax1.tick_params(axis='y', labelcolor=color)
+                ax1.plot(
+                    evaluation_df.index,
+                    smoothed_signal,
+                    label="Smoothed Signal",
+                    color=color,
+                    alpha=0.7,
+                )
+                ax1.tick_params(axis="y", labelcolor=color)
 
                 ax2 = ax1.twinx()
-                color = 'tab:red'
-                ax2.set_ylabel('Market Return', color=color)
+                color = "tab:red"
+                ax2.set_ylabel("Market Return", color=color)
                 smoothed_market_return = evaluation_df[market_col]
-                ax2.plot(evaluation_df.index, smoothed_market_return, label='Smoothed Market Return', color=color, alpha=0.7)
-                ax2.tick_params(axis='y', labelcolor=color)
+                ax2.plot(
+                    evaluation_df.index,
+                    smoothed_market_return,
+                    label="Smoothed Market Return",
+                    color=color,
+                    alpha=0.7,
+                )
+                ax2.tick_params(axis="y", labelcolor=color)
 
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
-                plt.savefig(f"{stock}_smoothed_signal_vs_market_return.png")
-                plt.close() 
+                plt.savefig(
+                    f"{SAVE_PATH}/correlation_curves/{stock}_smoothed_signal_vs_market_return.png"
+                )
+                plt.close()
 
     def launch(self):
         self.read_data()
@@ -331,95 +407,30 @@ class ModelEvaluationMonth:
         self.adjust_returns_with_company_names()
         self.evaluate_model_accuracy()
         self.compute_signal_market_correlation()
-        self.visualize_courbe()
+        self.visualize_courbe(SAVE_PATH="./../data/")
+
 
 class DailyModelEvaluation:
-    def __init__(
-        self, model_results_path: os.PathLike, returns_path: os.PathLike
-    ) -> None:
-        self.MODEL_RESULTS_PATH = model_results_path
-        self.DAILY_RETURNS_PATH = returns_path
+    def __init__(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame) -> None:
+        self.analysed_tweets = analysed_tweets
+        self.df_returns = returns
 
-    def _load_process_raw_data(self):
-        self.df_returns = pd.read_excel(self.DAILY_RETURNS_PATH, index_col=0)
-        self.df_model_results = pd.read_csv(self.MODEL_RESULTS_PATH)
-
-        # Applying preprocessing
-        self.df_model_results = self.__format_model_results(self.df_model_results)
-        # Convert from percentage to taux
-        self.df_returns = self.df_returns / 100
-
-        # Week-end
-        nan_mask = self.df_returns.isna().all(axis=1)
-        self.df_returns = self.df_returns.loc[~nan_mask, :]
-        
     def _correlation_by_company(
         self,
     ):
         """
         by : day, month, year
         """
-        self.convert_dict = self.__mapping()
 
-        self.positive_daily_ratios = self.__group_model_results(
-            df=self.df_model_results
-        )
+        self.positive_daily_ratios = self.__group_model_results(df=self.analysed_tweets)
 
         self.adjusted_returns = self.__adjust_returns_with_company_names()
 
-    def __format_model_results(self, df):
-        # Format PostDate to datetime
-        df["PostDate"] = pd.to_datetime(df["PostDate"])
-
-        # drop rows with NaN values in the "PostDate" column
-        df.dropna(subset=["PostDate"], inplace=True)
-
-        # add a column for the year and month
-        df["day"] = df["PostDate"].dt.day
-        df["month"] = df["PostDate"].dt.month
-        df["year"] = df["PostDate"].dt.year
-
-        # formatting sentiments
-        df["sentiment"] = df["sentiment"].map({"Bullish": 1, "Bearish": -1})
-        df["sentiment_base"] = df["sentiment_base"].map(
-            {"positive": 1, "neutral": 0, "negative": -1}
-        )
-        return df
-
-    def __mapping(self):
-        """cumsum for all stocks"""
-        df_columns_list = [
-            "BP PLC",
-            "FMC CORP",
-            "WEYERHAEUSER CO",
-            "ALTAGAS LTD",
-            "BHP GROUP",
-            "INTERNATIONAL PAPER CO",
-            "S&P 500 ENERGY INDEX",
-            "STORA ENSO",
-            "WILMAR INTERNATIONAL LTD",
-            "TOTALENERGIES SE",
-        ]
-
-        stocklist = [
-            "BP/ LN Equity",
-            "FMC US Equity",
-            "WY US Equity",
-            "ALA CT Equity",
-            "BHP US Equity",
-            "IP US Equity",
-            "S5ENRS Equity",
-            "STERV FH Equity",
-            "WIL SP Equity",
-            "TTE FP Equity",
-        ]
-        return {k: v for k, v in zip(df_columns_list, stocklist)}
-
-    def __group_model_results(self, df):
+    def __group_model_results(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Grouping model results by
+        Grouping model results
 
-        by : str = ["year", "month", "day", "company"]
+        by: str = ["year", "month", "day", "company"]
         """
         # group the data by year and month
         grouped = df.groupby(["year", "month", "day", "company"])
@@ -470,11 +481,19 @@ class DailyModelEvaluation:
         Adapt returns names to company names
         """
 
-        selected_columns = [value for value in self.convert_dict.values() if value in self.df_returns.columns]
+        selected_columns = [
+            value
+            for value in company_to_stock_dict.values()
+            if value in self.df_returns.columns
+        ]
         selected_returns = self.df_returns.loc[:, selected_columns]
-        
-        selected_returns.rename(columns={v:k for k, v in self.convert_dict.items()}, inplace=True)
-        selected_returns = selected_returns.reset_index().rename(columns={'index':'date'})
+
+        selected_returns.rename(
+            columns={v: k for k, v in company_to_stock_dict.items()}, inplace=True
+        )
+        selected_returns = selected_returns.reset_index().rename(
+            columns={"index": "date"}
+        )
 
         return selected_returns
 
@@ -483,7 +502,7 @@ class DailyModelEvaluation:
         # print(self.positive_daily_ratios)
         positive_ratios_by_day = self.positive_daily_ratios.copy()
 
-        # positive_ratios_by_day = self.__group_model_results(self.df_model_results)
+        # positive_ratios_by_day = self.__group_model_results(self.analysed_tweets)
         date_index = positive_ratios_by_day["yearmonthday"].unique().tolist()
         companies = positive_ratios_by_day["company"].unique().tolist()
 
@@ -509,11 +528,11 @@ class DailyModelEvaluation:
             self.stock_ratios = stock_ratios
             # saving info in a dataframe
             self.shortlongdf[company] = stock_ratios["buy_or_sell"]
- 
+
     def evaluate_model_accuracy(self):
-        self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns['date'])
+        self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
-        
+
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
         )
@@ -595,8 +614,7 @@ class DailyModelEvaluation:
         for company, corr_value in correlation_results.items():
             print(f"{company} Signal-Market Correlation: {corr_value}")
 
-
-    def visualize_courbe(self):        
+    def visualize_courbe(self):
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
         )
@@ -604,36 +622,58 @@ class DailyModelEvaluation:
         def moving_average(data, window_size):
             return data.rolling(window=window_size, min_periods=1).mean()
 
-        unique_stocks = set(col.split("_buysell")[0] for col in evaluation_df.columns if "_buysell" in col)
-        
+        unique_stocks = set(
+            col.split("_buysell")[0]
+            for col in evaluation_df.columns
+            if "_buysell" in col
+        )
+
         for stock in unique_stocks:
             buysell_col = stock + "_buysell"
             market_col = stock + "_market"
-            
-            if buysell_col in evaluation_df.columns and market_col in evaluation_df.columns:
+
+            if (
+                buysell_col in evaluation_df.columns
+                and market_col in evaluation_df.columns
+            ):
                 fig, ax1 = plt.subplots(figsize=(14, 7))
 
-                color = 'tab:blue'
-                ax1.set_xlabel('Date')
-                ax1.set_ylabel('Signal', color=color)
-                smoothed_signal = moving_average(evaluation_df[buysell_col], window_size=5)
-                ax1.plot(evaluation_df.index, smoothed_signal, label='Smoothed Signal', color=color, alpha=0.7)
-                ax1.tick_params(axis='y', labelcolor=color)
+                color = "tab:blue"
+                ax1.set_xlabel("Date")
+                ax1.set_ylabel("Signal", color=color)
+                smoothed_signal = moving_average(
+                    evaluation_df[buysell_col], window_size=5
+                )
+                ax1.plot(
+                    evaluation_df.index,
+                    smoothed_signal,
+                    label="Smoothed Signal",
+                    color=color,
+                    alpha=0.7,
+                )
+                ax1.tick_params(axis="y", labelcolor=color)
 
                 ax2 = ax1.twinx()
-                color = 'tab:red'
-                ax2.set_ylabel('Market Return', color=color)
-                smoothed_market_return = moving_average(evaluation_df[market_col], window_size=5)
-                ax2.plot(evaluation_df.index, smoothed_market_return, label='Smoothed Market Return', color=color, alpha=0.7)
-                ax2.tick_params(axis='y', labelcolor=color)
+                color = "tab:red"
+                ax2.set_ylabel("Market Return", color=color)
+                smoothed_market_return = moving_average(
+                    evaluation_df[market_col], window_size=5
+                )
+                ax2.plot(
+                    evaluation_df.index,
+                    smoothed_market_return,
+                    label="Smoothed Market Return",
+                    color=color,
+                    alpha=0.7,
+                )
+                ax2.tick_params(axis="y", labelcolor=color)
 
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
                 plt.savefig(f"{stock}_smoothed_signal_vs_market_return.png")
-                plt.close() 
+                plt.close()
 
     def launch(self):
-        self._load_process_raw_data()
         self._correlation_by_company()
         self.short_or_long()
         self.evaluate_model_accuracy()
@@ -642,7 +682,14 @@ class DailyModelEvaluation:
 
 
 if __name__ == "__main__":
-    path = "./../data/data_model/all_data.csv"
-    returns_path = "./../data/stocks_daily_data.xlsx" 
-    model_evaluator = DailyModelEvaluation(path, returns_path)
+    WEBSCRAPPED_DATA_PATH = "./../data/data_model/all_data.csv"
+    DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_daily_data.xlsx"
+
+    analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
+    df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
+
+    preprocessor = Preprocessing()
+    grouped_analysed_tweets, df_returns = preprocessor.process(analysed_tweets, df_returns)
+
+    model_evaluator = DailyModelEvaluation(grouped_analysed_tweets, df_returns)
     model_evaluator.launch()

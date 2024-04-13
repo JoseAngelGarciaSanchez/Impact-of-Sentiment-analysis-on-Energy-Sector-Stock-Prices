@@ -18,6 +18,9 @@ nltk = "^3.8.1"
 seaborn = "^0.13.2"
 transformers = "^4.37.1"
 selenium = "^4.18.1"
+black = "^24.2.0"
+pyspark = "^3.5.1"
+python-dotenv = "^1.0.1"
 
 
 [build-system]

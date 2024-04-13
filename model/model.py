@@ -13,7 +13,7 @@ class Model:
 
         The first one is "tarnformnet/Stock-Sentiment-BERT" model,
         which is a BERT-based model trained on stock market-related
-        tweets for sentiment analysis. 
+        tweets for sentiment analysis.
         The model is fine-tuned on a dataset of tweets related to publicly
         traded companies and is able to predict the sentiment of tweets
         as either positive, negative, or neutral.
