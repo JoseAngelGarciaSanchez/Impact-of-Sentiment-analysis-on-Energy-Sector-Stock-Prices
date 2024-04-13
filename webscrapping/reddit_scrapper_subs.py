@@ -23,8 +23,8 @@ class RedditBot:
         self.username = username
         self.password = password
         self.driver = create_browser_with_blocked_notifications()
-        self.list_seconds = [1, 2, 3]  # Example values, adjust as needed
-        self.verbose = True  # Print scroll progress information
+        self.list_seconds = [1, 2, 3]
+        self.verbose = True
 
     def accept_cookies(self):
         try:
@@ -56,58 +56,52 @@ class RedditBot:
         password_elem.send_keys(Keys.RETURN)
         time.sleep(2)
 
-
-
     def search_and_scrape(self, search_query):
-        self.driver.get(f"https://www.reddit.com/search/?q={search_query}&sort=new")
+        self.driver.get(f"https://www.reddit.com/r/{search_query}/new/")
         sleep(2)
-        
+
         last_position = self.driver.execute_script("return window.pageYOffset;")
         end_of_scroll_region = False
-        
-        with open(f"reddit_comments_{search_query}.csv", "w", newline="", encoding="utf-8") as file:
-            fieldnames = ["Title", "Published Date", "Comment"]
+
+        with open(
+            f"subreddit_{search_query}.csv", "w", newline="", encoding="utf-8"
+        ) as file:
+            fieldnames = ["Title", "Author", "Published date", "Topic", "Link"]
             writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
-            
+
             while not end_of_scroll_region:
-                posts = self.driver.find_elements(By.CSS_SELECTOR,'[data-testid="search-post"]')
-                print(posts)
-                for post in posts:
-                    post_text = post.get_attribute("innerText")
+                post_html_elements = self.driver.find_elements(By.TAG_NAME, "article")
+                unwanted_strings = ["MODO", "Mod", "•"]
+
+                for post_html_element in post_html_elements:
+                    post_text = post_html_element.get_attribute("innerText")
                     post_lines = [
                         line.strip()
                         for line in post_text.split("\n")
-                        if line.strip() and not any(unwanted in line for unwanted in ["MODO", "Mod", "•"])
-                    ]                    
-                    title = post_lines[0] if len(post_lines) > 0 else ""
-                    published_date = post_lines[1] if len(post_lines) > 1 else ""
-                
-                    print("Got the data")
-                    sleep(5)
-                    print("Now trying to click")
-                    to_comments = WebDriverWait(self.driver, 5).until(
-                        EC.element_to_be_clickable((By.XPATH, '//*[@id="main-content"]/div/reddit-feed/faceplate-tracker[1]'))
-                    )
-                    to_comments.click()
-                    
-                    print("Clicking worked")
-                    sleep(50)
-                    WebDriverWait(self.driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, '//div[@data-testid="comment"]'))
-                    )
-                    
-                    comments = self.driver.find_elements(By.XPATH, '//div[@data-testid="comment"]')
-                    for comment in comments:
-                        comment_text = comment.text.split('\n')[0]  # Taking the first line of the comment as an example
-                        writer.writerow({"Title": title, "Published Date": published_date, "Comment": comment_text})
+                        if line.strip()
+                        and not any(unwanted in line for unwanted in unwanted_strings)
+                    ]
 
-                    self.driver.back()
-                    sleep(random.choice(self.list_seconds))
+                    post_dict = {
+                        "Title": post_lines[1] if len(post_lines) > 0 else "",
+                        "Author": post_lines[0] if len(post_lines) > 1 else "",
+                        "Published date": post_lines[2] if len(post_lines) > 2 else "",
+                        "Topic": "",
+                        "Link": "",
+                    }
 
+                    if len(post_lines) > 3:
+                        post_dict["Topic"] = " ".join(post_lines[3:-1])
+                        # Add link if the last line starts with "http"
+                        if post_lines[-1].startswith("http"):
+                            post_dict["Link"] = post_lines[-1]
 
+                    writer.writerow(post_dict)
 
-
+                last_position, end_of_scroll_region = self._scroll_down_page(
+                    self.driver, last_position
+                )
 
     def _scroll_down_page(
         self, driver, last_position, scroll_attempt=0, max_attempts=3
@@ -118,7 +112,7 @@ class RedditBot:
         curr_position = driver.execute_script("return window.pageYOffset;")
         if curr_position == last_position:
             if scroll_attempt < max_attempts:
-                sleep(2)  # Wait a bit longer and try again
+                sleep(2)
                 last_position, end_of_scroll_region = self._scroll_down_page(
                     driver, last_position, scroll_attempt + 1, max_attempts
                 )
@@ -141,4 +135,5 @@ reddit_bot = RedditBot(username, password)
 sleep(2)
 reddit_bot.login()
 sleep(2)
-reddit_bot.search_and_scrape("S%26P+500+energy")
+reddit_bot.search_and_scrape("BP_PLC")
+reddit_bot.close_browser()
