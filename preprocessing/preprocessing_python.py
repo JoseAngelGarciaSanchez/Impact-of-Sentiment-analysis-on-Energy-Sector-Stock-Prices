@@ -86,21 +86,19 @@ class PreprocessorPipeline:
         return df
     
     def process(self, df: pd.DataFrame) -> pd.DataFrame:
-        print(df.shape)
         df = self._cast_columns(df)
         df = self._cleaning_tweets(df, "TweetText")
         df = self._loosing_handle(df)
         df = self._dealing_with_na(df)
-        print(df.shape)
 
         if self.verbose:
             print("Here is the result :) ")
-            # print(df.head(3))
+            print(df.head(3))
 
         return df
     
 
 if __name__ == '__main__':
     df = pd.read_csv('./../data/new_webscrapping/webscraped_bp_plc.csv')
-    pp = PreprocessorPipeline(verbose=False)
+    pp = PreprocessorPipeline(verbose=True)
     cleaned_df = pp.process(df)
