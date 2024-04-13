@@ -49,28 +49,26 @@ class PreprocessorPipeline:
 
         # Deleting special characters (\n)
         df[column] = df[column].str.replace(r"[\n]+", " ", regex=True)
+        
+        # Deleting any character before the ·
+        df[column] = df[column].apply(lambda tweet: tweet[tweet.find('·') + 1:] if '·' in tweet else tweet)
 
         # Deleting URLs
         df[column] = df[column].str.replace(r"https?://\S+", "", regex=True)
-        
-        # # Deleting hashtags and mentions
-        # df[column] = df[column].str.replace(r"#[^\s]+", "", regex=True)
-        # df[column] = df[column].str.replace(r"@[\w]+", "", regex=True)
 
-        # # Deleting any character that is not an uppercase or lowercase letter, a digit, or a space
-        # df[column] = df[column].str.replace(r"[^A-Za-z0-9 ]", "", regex=True)
-        
-        
+        # Deleting any character that is not an uppercase or lowercase letter, a digit, or a space
+        df[column] = df[column].str.replace(r"[^A-Za-z0-9 ]", " ", regex=True)
+
         # # Keeping only the text part of the tweets (if there is a need to extract after certain years)
-        # df[column] = df[column].str.extract(r"(?<=2017|2018|2019|2020|2021|2022)(.*)")[0]
+        # df[column] = df[column].str.extract(r"(?<=2017|2018|2019|2020|2021|2022|2023|2024)(.*)")[0]
 
         # Splitting by word boundaries and replacing non-word characters
-        df[column] = df[column].str.replace(r"\W+", " ", regex=True)
+        df[column] = df[column].str.replace(r"\W+", " ", regex=True).str.strip()
 
-        # # Repeating words like hurrrryyyyyy
-        # def rpt_repl(match):
-        #     return match.group(1) + match.group(1)
-        # df[column] = df[column].apply(lambda x: re.sub(r"(.)\1{1,}", rpt_repl, x) if pd.notna(x) else x)
+        # Repeating words like hurrrryyyyyy
+        def rpt_repl(match):
+            return match.group(1) + match.group(1)
+        df[column] = df[column].apply(lambda x: re.sub(r"(.)\1{1,}", rpt_repl, x) if pd.notna(x) else x)
 
         # Dropping duplicates
         df = df.drop_duplicates(subset=[column])
@@ -103,8 +101,6 @@ class PreprocessorPipeline:
     
 
 if __name__ == '__main__':
-
     df = pd.read_csv('./../data/new_webscrapping/webscraped_bp_plc.csv')
-
-    pp = PreprocessorPipeline(verbose=True)
+    pp = PreprocessorPipeline(verbose=False)
     cleaned_df = pp.process(df)
