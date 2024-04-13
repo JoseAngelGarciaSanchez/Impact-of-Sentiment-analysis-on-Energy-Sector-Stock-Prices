@@ -12,6 +12,9 @@ nltk.download("perluniprops")
 
 
 class PreprocessorPipeline:
+    """
+    preprocess class for cleaning webscrapped tweets
+    """
     def __init__(self, path, output_path):
         self.path = path
         self.output_path = output_path
@@ -159,7 +162,7 @@ class PreprocessorPipeline:
         ).save(self.output_path)
         return df
 
-    def launch(self):
+    def launch(self) -> None:
         df = preprocessing.import_df()
         df.show()
         df = preprocessing.cast_columns(df)
