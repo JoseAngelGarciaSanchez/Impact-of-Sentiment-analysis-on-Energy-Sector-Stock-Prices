@@ -1,9 +1,15 @@
-import sys
+import os
 
-from preprocessing.preprocessing import PreprocessorPipeline
+import pandas as pd
+
+from preprocessing.preprocessing_python import PreprocessorPipeline
 
 
-path = sys.argv[1]
-output_path = "./../data_cleaned/" + path.split("/")[-1]
-preprocessing = PreprocessorPipeline(path=path, output_path=output_path)
-preprocessing.launch()
+preprocessor = PreprocessorPipeline()
+
+for dir, _, files in os.walk('./data/new_webscrapping/'):
+    for file in files:
+        df = pd.read_csv(dir+file)
+        df_processed = preprocessor.process(df)
+        df_processed.to_pickle('./data/new_webscrapping_clean'+file.split('.csv')[0])
+    break
