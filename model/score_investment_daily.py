@@ -248,7 +248,7 @@ class DailyModelEvaluation:
         return pd.DataFrame.from_dict(correlation_results, orient='index', columns=['Correlation'])
 
     def save_results_to_excel(self):
-        with pd.ExcelWriter('daily_model_results.xlsx') as writer:
+        with pd.ExcelWriter('./model_evaluation/daily_model_results.xlsx') as writer:
             self.evaluate_model_accuracy().to_excel(writer, sheet_name='Model Accuracy')
             self.compute_signal_market_correlation().to_excel(writer, sheet_name='Signal Market Correlation')
 
@@ -310,7 +310,7 @@ class DailyModelEvaluation:
 
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
-                plt.savefig(f"./visualization/{stock}_smoothed_signal_vs_market_return.png")
+                plt.savefig(f"./model_evaluation/visualization/{stock}_smoothed_signal_vs_market_return.png")
                 plt.close()
 
     def launch(self):
