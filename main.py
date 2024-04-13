@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from preprocessing.preprocessing_python import PreprocessorPipeline
+from preprocessing.preprocessing import PreprocessorPipeline
 
 
 preprocessor = PreprocessorPipeline()
