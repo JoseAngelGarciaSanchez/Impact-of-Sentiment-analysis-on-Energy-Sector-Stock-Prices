@@ -5,7 +5,7 @@ from transformers import pipeline
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 
-class Model:
+class SentimentalAnalysisModel:
     def __init__(self):
         """
         We're implementing two pre-trained models
@@ -52,22 +52,17 @@ class Model:
             "sentiment-analysis", model="ProsusAI/finbert", tokenizer="ProsusAI/finbert"
         )
 
-    def predict(self, dataframe_path: str, output_path: str):
+    def predict(self, df: pd.DataFrame) -> pd.DataFrame:
         """Given a dataframe path and an output path, this function
         loads the dataframe, applies sentiment analysis on the
         'TweetText' column using two different models: nlp1 and nlp2,
         and saves the resulting dataframe with two new columns
         'sentiment' and 'sentiment_base' to the output path.
         """
-        # Load your dataframe
-        df = pd.read_csv(dataframe_path)
 
         # Using map function
         df["sentiment"] = df["TweetText"].map(lambda x: self.nlp1(x)[0]["label"])
         df["sentiment_base"] = df["TweetText"].map(lambda x: self.nlp2(x)[0]["label"])
-
-        # Save the dataframe with the new column
-        df.to_csv(output_path, index=False)
 
         return df
 
@@ -75,7 +70,7 @@ class Model:
 if __name__ == "__main__":
     dataframe_path = sys.argv[1]
     output_path = "./../data_model/" + dataframe_path.split("/")[-2]
-    model = Model()
+    model = SentimentalAnalysisModel()
     df = model.predict(dataframe_path, output_path)
     print("Here is the result :)")
     print(df)
