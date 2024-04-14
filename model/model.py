@@ -33,6 +33,7 @@ class SentimentalAnalysisModel:
         # Implementing the first model
         self.tokenizer1 = AutoTokenizer.from_pretrained(
             "tarnformnet/Stock-Sentiment-BERT"
+            # "tarnformnet/Stock-Sentiment-Bert"
         )
         self.model1 = AutoModelForSequenceClassification.from_pretrained(
             "tarnformnet/Stock-Sentiment-BERT", from_tf=True
