@@ -224,11 +224,11 @@ class MonthlyModelEvaluation:
         accuracy_metrics = {}
 
         def prediction_matches(signal, market_return):
-            if signal > 0 and market_return > 1:
+            if signal > 0.5 and market_return > 0: #strong positive signal
                 return True
-            elif signal < 0 and market_return < 1:
+            elif signal < -0.5 and market_return < 0: #strong negative signal
                 return True
-            elif -0.1 < signal < 0.1 and 0.9 < market_return < 1.1:
+            elif -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05: #neutral signal
                 return True
             else:
                 return False
