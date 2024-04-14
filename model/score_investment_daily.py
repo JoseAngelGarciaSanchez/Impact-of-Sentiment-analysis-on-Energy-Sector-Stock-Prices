@@ -324,7 +324,7 @@ class DailyModelEvaluation:
 
 
 if __name__ == "__main__":
-    WEBSCRAPPED_DATA_PATH = "./../data//new_webscrapping_predicted/concatenated_prediction.csv"
+    WEBSCRAPPED_DATA_PATH = "./../data/new_webscrapping_predicted/concatenated_prediction.csv"
     DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_daily_data.xlsx"
     analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
     df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)

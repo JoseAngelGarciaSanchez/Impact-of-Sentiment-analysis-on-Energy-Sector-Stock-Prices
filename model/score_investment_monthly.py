@@ -224,11 +224,11 @@ class MonthlyModelEvaluation:
         accuracy_metrics = {}
 
         def prediction_matches(signal, market_return):
-            if signal > 0.5 and market_return > 0: #strong positive signal
+            if signal > 0.5 and market_return > 1:
                 return True
-            elif signal < -0.5 and market_return < 0: #strong negative signal
+            elif signal < -0.5 and market_return < 1:
                 return True
-            elif -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05: #neutral signal
+            elif -0.5 < signal < 0.5 and 0.9 < market_return < 1.1:
                 return True
             else:
                 return False
@@ -391,7 +391,7 @@ class MonthlyModelEvaluation:
 
 
 if __name__ == "__main__":
-    WEBSCRAPPED_DATA_PATH = "./../data/data_model/all_data.csv"
+    WEBSCRAPPED_DATA_PATH = "./../data/new_webscrapping_predicted/concatenated_prediction.csv"
     DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_data.xlsx"
 
     analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
