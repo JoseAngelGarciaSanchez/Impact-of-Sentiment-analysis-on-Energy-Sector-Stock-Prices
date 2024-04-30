@@ -139,17 +139,43 @@ class TwitterScrapper:
 
     def _get_recents(self, driver):
         """get recents tweets from the 'lasts' page for recent activity"""
-        try:
-            recent = driver.find_element(
-                "xpath",
-                '//*[@id="react-root"]/div/div/div[2]/main/div/div/div/div[1]/div/div[1]/div[1]/div[2]/nav/div/div[2]/div/div[2]/a/div/div',
-            )
-            recent.click()
-            if self.verbose:
-                print("good for getting recents tweets")
-        except NoSuchElementException:
-            if self.verbose:
-                print("Recents box not found")
+        for _ in range(10):
+            try:
+                recent = driver.find_element(
+                    "xpath",
+                    '//*[@id="react-root"]/div/div/div[2]/main/div/div/div/div[1]/div/div[1]/div[1]/div[2]/nav/div/div[2]/div/div[2]/a/div/div',
+                )
+                recent.click()
+                if self.verbose:
+                    print("good for getting recents tweets")
+                sleep(1)
+            except NoSuchElementException:
+                if self.verbose:
+                    print("Recents box not found")
+            try:
+                recent = driver.find_element(
+                    "xpath",
+                    '//*[@id="react-root"]/div/div/div[2]/main/div/div/div/div/div/div[1]/div[1]/div[2]/nav/div/div[2]/div/div[1]/a/div/div/span',
+                )
+                recent.click()
+                if self.verbose:
+                    print("good for getting recents tweets")
+                sleep(1)
+            except NoSuchElementException:
+                if self.verbose:
+                    print("Recents box not found")
+            try:
+                recent = driver.find_element(
+                    "xpath",
+                    '//*[@id="react-root"]/div/div/div[2]/main/div/div/div/div[1]/div/div[1]/div[1]/div[2]/nav/div/div[2]/div/div[2]/a/div/div',
+                )
+                recent.click()
+                if self.verbose:
+                    print("good for getting recents tweets")
+                sleep(1)
+            except NoSuchElementException:
+                if self.verbose:
+                    print("Recents box not found")
 
     def __get_tweet_data(self, card):
         """Extract data from tweet card"""
@@ -352,7 +378,7 @@ if __name__ == "__main__":
     USERNAME_3 = os.getenv('USERNAME_3')
     PASSWORD_3 = os.getenv('PASSWORD_3')
 
-    RESEARCH = "@bhp"
+    RESEARCH = "totalenergies"
     SAVE_PATH = "./../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
