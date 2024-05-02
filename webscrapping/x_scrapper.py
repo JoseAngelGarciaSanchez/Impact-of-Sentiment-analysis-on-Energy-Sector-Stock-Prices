@@ -313,9 +313,11 @@ class TwitterScrapper:
             liked_count = 0  
 
             for button in like_buttons:
-                if random.random() < 0.05:  
-                    ActionChains(driver).move_to_element(button).perform()
+                random_threshold = random.uniform(0.01, 0.20) 
+                random_chance = random.random() 
 
+                if random_chance < random_threshold:
+                    ActionChains(driver).move_to_element(button).perform()
                     wait = WebDriverWait(driver, 10)
                     like_button = wait.until(EC.element_to_be_clickable(button))
 
