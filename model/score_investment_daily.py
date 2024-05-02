@@ -49,6 +49,7 @@ class Preprocessing:
 
         return analysed_tweets, returns
 
+
 class DailyModelEvaluation:
     def __init__(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame) -> None:
         self.analysed_tweets = analysed_tweets
@@ -168,7 +169,6 @@ class DailyModelEvaluation:
             # saving info in a dataframe
             self.shortlongdf[company] = stock_ratios["buy_or_sell"]
 
-
     def evaluate_model_accuracy(self):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
@@ -180,12 +180,14 @@ class DailyModelEvaluation:
         accuracy_metrics = {}
 
         def prediction_matches(signal, market_return):
-            
-            if signal > 0.5 and market_return > 0: #strong positive signal
+
+            if signal > 0.5 and market_return > 0:  # strong positive signal
                 return True
-            elif signal < -0.5 and market_return < 0: #strong negative signal
+            elif signal < -0.5 and market_return < 0:  # strong negative signal
                 return True
-            elif -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05: #neutral signal
+            elif (
+                -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05
+            ):  # neutral signal
                 return True
             else:
                 return False
@@ -208,10 +210,20 @@ class DailyModelEvaluation:
                         if prediction_matches(row[column], row[market_column]):
                             accuracy_metrics[company_name]["correct_predictions"] += 1
 
-        return pd.DataFrame.from_dict({
-            stock: {'Accuracy (%)': (metrics['correct_predictions'] / metrics['total_signals']) * 100 if metrics['total_signals'] > 0 else 0}
-            for stock, metrics in accuracy_metrics.items()
-        }, orient='index')
+        return pd.DataFrame.from_dict(
+            {
+                stock: {
+                    "Accuracy (%)": (
+                        (metrics["correct_predictions"] / metrics["total_signals"])
+                        * 100
+                        if metrics["total_signals"] > 0
+                        else 0
+                    )
+                }
+                for stock, metrics in accuracy_metrics.items()
+            },
+            orient="index",
+        )
 
     def compute_signal_market_correlation(self):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
@@ -238,20 +250,30 @@ class DailyModelEvaluation:
                     if not clean_df.empty:
                         signal_data = clean_df[signal_column]
                         market_data = clean_df[market_column]
-                        corr, p_value = pearsonr(signal_data, market_data) if len(signal_data) >= 2 and len(market_data) >= 2 else (None, None)
+                        corr, p_value = (
+                            pearsonr(signal_data, market_data)
+                            if len(signal_data) >= 2 and len(market_data) >= 2
+                            else (None, None)
+                        )
 
                         company_name = column.split("_signal")[0]
                         significance = "***" if p_value and p_value < 0.05 else ""
-                        formatted_correlation = f"{corr:.4f} {significance}" if corr is not None else "N/A"
+                        formatted_correlation = (
+                            f"{corr:.4f} {significance}" if corr is not None else "N/A"
+                        )
 
                         correlation_results[company_name] = formatted_correlation
 
-        return pd.DataFrame.from_dict(correlation_results, orient='index', columns=['Correlation'])
+        return pd.DataFrame.from_dict(
+            correlation_results, orient="index", columns=["Correlation"]
+        )
 
     def save_results_to_excel(self):
-        with pd.ExcelWriter('./model_evaluation/daily_model_results.xlsx') as writer:
-            self.evaluate_model_accuracy().to_excel(writer, sheet_name='Model Accuracy')
-            self.compute_signal_market_correlation().to_excel(writer, sheet_name='Signal Market Correlation')
+        with pd.ExcelWriter("./model_evaluation/daily_model_results.xlsx") as writer:
+            self.evaluate_model_accuracy().to_excel(writer, sheet_name="Model Accuracy")
+            self.compute_signal_market_correlation().to_excel(
+                writer, sheet_name="Signal Market Correlation"
+            )
 
         print("Results saved to daily_model_results.xlsx.")
 
@@ -311,7 +333,9 @@ class DailyModelEvaluation:
 
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
-                plt.savefig(f"./model_evaluation/visualization/{stock}_smoothed_signal_vs_market_return.png")
+                plt.savefig(
+                    f"./model_evaluation/visualization/{stock}_smoothed_signal_vs_market_return.png"
+                )
                 plt.close()
 
     def launch(self):
@@ -324,13 +348,17 @@ class DailyModelEvaluation:
 
 
 if __name__ == "__main__":
-    WEBSCRAPPED_DATA_PATH = "./../data/new_webscrapping_predicted/concatenated_prediction.csv"
+    WEBSCRAPPED_DATA_PATH = (
+        "./../data/new_webscrapping_predicted/concatenated_prediction.csv"
+    )
     DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_daily_data.xlsx"
     analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
     df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
 
     preprocessor = Preprocessing()
-    grouped_analysed_tweets, df_returns = preprocessor.process(analysed_tweets, df_returns)
+    grouped_analysed_tweets, df_returns = preprocessor.process(
+        analysed_tweets, df_returns
+    )
 
     model_evaluator = DailyModelEvaluation(grouped_analysed_tweets, df_returns)
     model_evaluator.launch()
