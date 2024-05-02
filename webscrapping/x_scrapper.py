@@ -10,6 +10,9 @@ from selenium.common.exceptions import (
     NoSuchElementException,
     StaleElementReferenceException,
 )
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver import Chrome
 
@@ -300,6 +303,33 @@ class TwitterScrapper:
             if records:
                 writer.writerow(records)
 
+    def _like_tweet(self, driver):
+        """Randomly likes tweets visible on the current page based on a predefined chance."""
+        try:
+            like_buttons = driver.find_elements("xpath", '//div[@data-testid="like"]')
+            liked_count = 0  
+
+            for button in like_buttons:
+                if random.random() < 0.05:  
+                    ActionChains(driver).move_to_element(button).perform()
+
+                    wait = WebDriverWait(driver, 10)
+                    like_button = wait.until(EC.element_to_be_clickable(button))
+
+                    driver.execute_script("arguments[0].click();", like_button)
+                    liked_count += 1
+                    sleep(random.randint(2, 5))  
+
+            if self.verbose:
+                print(f"Liked {liked_count} tweets out of {len(like_buttons)} available.")
+        except NoSuchElementException:
+            if self.verbose:
+                print("No like buttons found")
+        except Exception as e:
+            print(f"Error during liking tweets: {str(e)}")
+
+            
+
     def _scroll_and_save(self, driver, save_path):
 
         last_position = None
@@ -325,6 +355,8 @@ class TwitterScrapper:
                     unique_tweets.add(tweet_id)
 
                     self.__save_tweet_data_to_csv(tweet, save_path)
+                    
+                self._like_tweet(driver) 
 
             sleep(random.randint(3, 6))
 
@@ -378,7 +410,7 @@ if __name__ == "__main__":
     USERNAME_3 = os.getenv('USERNAME_3')
     PASSWORD_3 = os.getenv('PASSWORD_3')
 
-    RESEARCH = "totalenergies"
+    RESEARCH = "@bhp"
     SAVE_PATH = "./../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
