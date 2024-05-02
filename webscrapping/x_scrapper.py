@@ -55,6 +55,9 @@ class TwitterScrapper:
         options = webdriver.ChromeOptions()
         options.add_argument("--start-maximized")
         options.add_argument("--incognito")
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36')
+        options.add_argument("--disable-popup-blocking")
+
         driver = Chrome(options=options)
 
         sleep(random.randint(1, 3))
@@ -410,7 +413,7 @@ if __name__ == "__main__":
     USERNAME_3 = os.getenv('USERNAME_3')
     PASSWORD_3 = os.getenv('PASSWORD_3')
 
-    RESEARCH = "@bhp"
+    RESEARCH = "stora enso"
     SAVE_PATH = "./../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
