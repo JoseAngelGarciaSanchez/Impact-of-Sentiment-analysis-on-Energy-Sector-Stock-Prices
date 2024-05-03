@@ -313,7 +313,7 @@ class TwitterScrapper:
             liked_count = 0  
 
             for button in like_buttons:
-                random_threshold = random.uniform(0.01, 0.20) 
+                random_threshold = random.uniform(0.001, 0.05) 
                 random_chance = random.random() 
 
                 if random_chance < random_threshold:
