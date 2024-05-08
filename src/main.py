@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from model.model import SentimentalAnalysisModel
+from model.sentimental_model import SentimentalAnalysisModel
 from model.parameters import concatenated_info
 from preprocessing.preprocessing import PreprocessorPipeline
 
@@ -23,7 +23,7 @@ class LaunchSystem:
     def _concatenated_prediction(self, dir: str | None = None):
         """
         dir: str | None = None
-        ----example: "./data/new_webscrapping_predicted/"
+        ----example: "./example/path"
         """
         concatenated_prediction = pd.DataFrame()
         for directoty, _, files in os.walk(dir):
