@@ -25,6 +25,7 @@ langdetect = "^1.0.9"
 torch = "^2.2.2"
 tensorflow = "^2.16.1"
 tf-keras = "^2.16.0"
+iprogress = "^0.4"
 
 
 [build-system]
