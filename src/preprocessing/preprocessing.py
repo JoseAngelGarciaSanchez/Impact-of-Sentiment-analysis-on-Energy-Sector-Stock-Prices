@@ -238,7 +238,7 @@ class PreprocessorPipeline:
         )
 
         # Dropping duplicates
-        df = df.drop_duplicates(subset=[column])
+        df = df.drop_duplicates()
 
         return df
 
@@ -330,7 +330,7 @@ class PreprocessorPipeline:
         df = self._loosing_handle(df)
 
         if self.verbose:
-            print("[+] Here is the result example :) ")
+            print("---Here is the result example :) ")
             print(df.head(3))
 
         return df
