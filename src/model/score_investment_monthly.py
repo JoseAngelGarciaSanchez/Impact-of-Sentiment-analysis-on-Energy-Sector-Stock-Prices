@@ -24,6 +24,7 @@ class AnalysisPreprocessing:
 
         self.df["year"] = self.df["PostDate"].dt.year
         self.df["month"] = self.df["PostDate"].dt.month
+        self.df["day"] = self.df["PostDate"].dt.day
 
     def _map_sentiments(self):
         """
