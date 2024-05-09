@@ -268,8 +268,8 @@ class DailyModelEvaluation:
             correlation_results, orient="index", columns=["Correlation"]
         )
 
-    def save_results_to_excel(self):
-        with pd.ExcelWriter("./model_evaluation/daily_model_results.xlsx") as writer:
+    def save_results_to_excel(self, save_path):
+        with pd.ExcelWriter(f"{save_path}daily_model_results.xlsx") as writer:
             self.evaluate_model_accuracy().to_excel(writer, sheet_name="Model Accuracy")
             self.compute_signal_market_correlation().to_excel(
                 writer, sheet_name="Signal Market Correlation"
@@ -277,7 +277,10 @@ class DailyModelEvaluation:
 
         print("Results saved to daily_model_results.xlsx.")
 
-    def visualize_courbe(self):
+    def visualize_courbe(self, save_path):
+
+        os.makedirs(f"{save_path}correlation_curves/", exist_ok=True)
+
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
         )
@@ -334,24 +337,26 @@ class DailyModelEvaluation:
                 fig.tight_layout()
                 plt.title(f"Smoothed Signal vs Market Return for {stock}")
                 plt.savefig(
-                    f"./model_evaluation/visualization/{stock}_smoothed_signal_vs_market_return.png"
+                    f"{save_path}/correlation_curves/{stock}_smoothed_signal_vs_market_return.png"
                 )
                 plt.close()
 
     def launch(self):
+        save_path = './../../data/results/daily_model/'
+
         self._correlation_by_company()
         self.short_or_long()
         self.evaluate_model_accuracy()
         self.compute_signal_market_correlation()
-        self.save_results_to_excel()
-        self.visualize_courbe()
+        self.save_results_to_excel(save_path=save_path)
+        self.visualize_courbe(save_path=save_path)
 
 
 if __name__ == "__main__":
     WEBSCRAPPED_DATA_PATH = (
-        "./../data/new_webscrapping_predicted/concatenated_prediction.csv"
+        "./../../data/new_webscrapping_predicted/concatenated_prediction.csv"
     )
-    DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_daily_data.xlsx"
+    DAILY_STOCKS_RETURNS_PATH = "./../../data/stocks_daily_data.xlsx"
     analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
     df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
 
