@@ -1,4 +1,6 @@
 import os
+from typing import Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -8,20 +10,11 @@ np.random.seed(42)
 pd.options.mode.chained_assignment = None
 
 
-class MonthlyModelEvaluation:
+class AnalysisPreprocessing:
+    def __init__(self) -> None:
+        pass
 
-    # ----------- Pre-processing
-    def __init__(self, path: str, returns_path: str) -> None:
-        self.path = path
-        self.returns_path = returns_path
-
-    def read_data(self):
-        self.returns = pd.read_excel(
-            self.returns_path, sheet_name="Returns", header=[5, 6]
-        ).T.iloc[2:, :]
-        self.df = pd.read_csv(self.path)
-
-    def format_dates(self):
+    def _format_dates(self):
         """
         - Trim, convert to datetime, and handle missing values for PostDate
         - Extract year and month
@@ -32,7 +25,7 @@ class MonthlyModelEvaluation:
         self.df["year"] = self.df["PostDate"].dt.year
         self.df["month"] = self.df["PostDate"].dt.month
 
-    def map_sentiments(self):
+    def _map_sentiments(self):
         """
         Map sentiment labels to numerical values :
 
@@ -42,25 +35,23 @@ class MonthlyModelEvaluation:
         """
         sentiment_mapping = {"Bullish": 1, "Bearish": -1}
         base_sentiment_mapping = {"positive": 1, "neutral": 0, "negative": -1}
+
         self.df["sentiment"] = self.df["sentiment"].map(sentiment_mapping)
         self.df["sentiment_base"] = self.df["sentiment_base"].map(
             base_sentiment_mapping
         )
-
-    def standardize_column_names(self):
-        """Standardize the first row as column names"""
-        self.returns.rename(columns=self.returns.iloc[0], inplace=True)
-        self.returns = self.returns.iloc[2:]
 
     def uppercase_column_names(self):
         """Convert all column names to uppercase."""
         self.returns.columns = self.returns.columns.str.upper()
 
     def reset_and_clean_indices(self):
-        """Reset the DataFrame index and rename new indices to meaningful names, remove unnecessary columns."""
+        """
+        Reset the DataFrame index and rename new indices to meaningful
+        names, remove unnecessary columns.
+        """
         self.returns.reset_index(inplace=True)
-        self.returns.rename(columns={"level_1": "DATE"}, inplace=True)
-        self.returns.drop(columns="level_0", inplace=True, errors="ignore")
+        self.returns.rename(columns={"index": "DATE"}, inplace=True)
 
     def format_date_column(self):
         """Convert the 'DATE' column to datetime format."""
@@ -74,7 +65,7 @@ class MonthlyModelEvaluation:
             self.returns["year"].astype(str) + "-" + self.returns["month"]
         )
 
-    def convert_percentages(self):
+    def _convert_percentages(self):
         """Convert percentage columns to a numeric scale by excluding date related columns."""
         except_column = ["DATE", "year", "month", "yearmonth"]
         selected_columns = [
@@ -84,9 +75,35 @@ class MonthlyModelEvaluation:
             self.returns[selected_columns].astype(float).apply(lambda x: x / 100 + 1)
         )
 
-    # ----------- Model
+    def process(
+        self, webscrapped_data: pd.DataFrame, stock_returns: pd.DataFrame
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        self.returns = stock_returns.copy()
+        self.df = webscrapped_data.copy()
 
-    def positive_ratio(self) -> pd.DataFrame:
+        self._format_dates()
+        self._map_sentiments()
+
+        self.uppercase_column_names()
+        self.reset_and_clean_indices()
+        self.format_date_column()
+        self.create_year_and_month_columns()
+        self._convert_percentages()
+
+        return self.df, self.returns
+
+
+class MonthlyModelEvaluation:
+
+    def __init__(
+        self,
+        webscrapped_data_processed: pd.DataFrame,
+        stock_returns_processed: pd.DataFrame,
+    ) -> None:
+        self.df = webscrapped_data_processed
+        self.returns = stock_returns_processed
+
+    def __positive_ratio(self) -> pd.DataFrame:
         """
         Calculate and return the positive sentiment ratio by year, month, and company.
 
@@ -145,7 +162,7 @@ class MonthlyModelEvaluation:
         while a negative value suggests selling.
         """
         # Calculate positive ratios by month for each company
-        positive_ratios_by_month = self.positive_ratio()
+        positive_ratios_by_month = self.__positive_ratio()
 
         # Extract unique year-month combinations and companies
         date_index = positive_ratios_by_month["yearmonth"].unique().tolist()
@@ -229,7 +246,7 @@ class MonthlyModelEvaluation:
 
     # ----------- Evaluate model
 
-    def evaluate_model_accuracy(self):
+    def evaluate_model_accuracy(self, SAVE_PATH):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
@@ -283,11 +300,11 @@ class MonthlyModelEvaluation:
         )
 
         # Save to Excel
-        metrics_df.to_excel("monthlymodel_accuracy.xlsx")
+        metrics_df.to_excel(f"{SAVE_PATH}monthlymodel_accuracy.xlsx")
 
         print("Accuracy metrics saved to model_accuracy.xlsx.")
 
-    def compute_signal_market_correlation(self):
+    def compute_signal_market_correlation(self, SAVE_PATH):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
@@ -335,13 +352,13 @@ class MonthlyModelEvaluation:
         )
 
         # Save to Excel
-        correlation_df.to_excel("monthly_signal_market_correlation.xlsx")
+        correlation_df.to_excel(f"{SAVE_PATH}monthly_signal_market_correlation.xlsx")
 
         print("Correlation results saved to signal_market_correlation.xlsx.")
 
     def visualize_courbe(self, SAVE_PATH: str | os.PathLike):
 
-        os.makedirs(f"{SAVE_PATH}/correlation_curves/", exist_ok=True)
+        os.makedirs(f"{SAVE_PATH}correlation_curves/", exist_ok=True)
 
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
@@ -397,35 +414,34 @@ class MonthlyModelEvaluation:
                 plt.close()
 
     def launch(self):
-        self.read_data()
-        self.format_dates()
-        self.map_sentiments()
-        self.standardize_column_names()
-        self.uppercase_column_names()
-        self.reset_and_clean_indices()
-        self.format_date_column()
-        self.create_year_and_month_columns()
-        self.convert_percentages()
+        SAVE_PATH = "./../../data/results/monthly_model/"
 
         self.short_or_long()
         self.mapping()
         self.adjust_returns_with_company_names()
 
-        self.evaluate_model_accuracy()
-        self.compute_signal_market_correlation()
-        self.visualize_courbe(SAVE_PATH="./../data/")
+        self.evaluate_model_accuracy(SAVE_PATH=SAVE_PATH)
+        self.compute_signal_market_correlation(SAVE_PATH=SAVE_PATH)
+        self.visualize_courbe(SAVE_PATH=SAVE_PATH)
 
 
 if __name__ == "__main__":
     WEBSCRAPPED_DATA_PATH = (
-        "./../data/new_webscrapping_predicted/concatenated_prediction.csv"
+        "./../../data/new_webscrapping_predicted/concatenated_prediction.csv"
     )
-    DAILY_STOCKS_RETURNS_PATH = "./../data/stocks_data.xlsx"
+    DAILY_STOCKS_RETURNS_PATH = "./../../data/stocks_data.pkl"
 
-    analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
-    df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
+    analysed_webscrapped_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
+    df_returns = pd.read_pickle(DAILY_STOCKS_RETURNS_PATH)
+
+    ap = AnalysisPreprocessing()
+
+    analysed_webscrapped_tweets_processed, df_returns_processed = ap.process(
+        webscrapped_data=analysed_webscrapped_tweets, stock_returns=df_returns
+    )
 
     model_evaluator = MonthlyModelEvaluation(
-        WEBSCRAPPED_DATA_PATH, DAILY_STOCKS_RETURNS_PATH
+        webscrapped_data_processed=analysed_webscrapped_tweets_processed,
+        stock_returns_processed=df_returns_processed,
     )
     model_evaluator.launch()
