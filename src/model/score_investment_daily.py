@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
+import statsmodels.api as sm
 
 from parameters import company_to_stock_dict
 
@@ -225,6 +226,7 @@ class DailyModelEvaluation:
             orient="index",
         )
 
+
     def compute_signal_market_correlation(self):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
@@ -235,37 +237,33 @@ class DailyModelEvaluation:
 
         correlation_results = {}
 
-        for column in evaluation_df.columns:
-            if "_signal" in column:
-                signal_column = column
-                market_column = column.replace("_signal", "_market")
+        for signal_column in evaluation_df.columns:
+            if "_signal" in signal_column:
+                base_name = signal_column.split("_signal")[0]
+                market_column = base_name + "_market"
 
                 if market_column in evaluation_df.columns:
-                    clean_df = (
-                        evaluation_df[[signal_column, market_column]]
-                        .replace([np.inf, -np.inf], np.nan)
-                        .dropna()
-                    )
-
-                    if not clean_df.empty:
+                    
+                    clean_df = evaluation_df[[signal_column, market_column]].dropna()
+                    print(evaluation_df,clean_df)
+                    if not clean_df.empty and len(clean_df.dropna()) >= 2:  # Check if there's enough data
                         signal_data = clean_df[signal_column]
                         market_data = clean_df[market_column]
-                        corr, p_value = (
-                            pearsonr(signal_data, market_data)
-                            if len(signal_data) >= 2 and len(market_data) >= 2
-                            else (None, None)
-                        )
 
-                        company_name = column.split("_signal")[0]
-                        significance = "***" if p_value and p_value < 0.05 else ""
-                        formatted_correlation = (
-                            f"{corr:.4f} {significance}" if corr is not None else "N/A"
-                        )
+                        # Compute correlation
+                        pearson_corr, p_value = pearsonr(signal_data, market_data)
+                        corr = sm.tsa.stattools.ccf(signal_data, market_data, adjusted=False)
 
-                        correlation_results[company_name] = formatted_correlation
+                        # Determine significance
+                        #significance = "***" if p_value and p_value < 0.05 else ""
+                        formatted_correlation = f"{corr}" if corr is not None else "N/A"
 
+                        # Store both correlation and significance under the same key
+                        correlation_results[base_name] = [formatted_correlation, pearson_corr, p_value]
+
+        # Create DataFrame with appropriate column names
         return pd.DataFrame.from_dict(
-            correlation_results, orient="index", columns=["Correlation"]
+            correlation_results, orient="index", columns=["Cross-Correlation", "Pearson Correlation (need to stationarize)", "P-value"]
         )
 
     def save_results_to_excel(self, save_path):
