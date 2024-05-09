@@ -55,10 +55,10 @@ class PreprocessorPipeline:
     @staticmethod
     def convert_to_int(value):
         if isinstance(value, int) or isinstance(value, float):
-            return int(value)
+            return int(float(value))
         if "K" in value:
             return int(float(value.replace("K", "")) * 1000)
-        return int(value)
+        return int(float(value))
 
     def _dealing_with_na(self, df):
         """
