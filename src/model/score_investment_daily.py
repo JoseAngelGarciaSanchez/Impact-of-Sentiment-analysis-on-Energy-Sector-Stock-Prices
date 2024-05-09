@@ -226,7 +226,6 @@ class DailyModelEvaluation:
             orient="index",
         )
 
-
     def compute_signal_market_correlation(self):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
