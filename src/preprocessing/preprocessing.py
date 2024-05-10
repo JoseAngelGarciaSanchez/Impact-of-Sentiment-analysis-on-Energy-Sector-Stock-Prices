@@ -54,8 +54,7 @@ class PreprocessorPipeline:
 
     @staticmethod
     def convert_to_int(value):
-        if isinstance(value, int) or isinstance(value, float):
-            return int(float(value))
+        value = str(value).replace(",", '.')
         if "K" in value:
             return int(float(value.replace("K", "")) * 1000)
         return int(float(value))

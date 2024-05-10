@@ -44,17 +44,17 @@ class LaunchSystem:
         company_name: str | None = 'webscraped_stora_enso'
         ----example: "webscraped_stora_enso"
         """
-        df = pd.read_csv(f"./../data/new_webscrapping/{company_name}.csv")
+        df = pd.read_csv(f"./../data/webscrapped/raw/twitter/{company_name}.csv")
         df_processed = self._processing_tweets(df=df)
         df_predicted = self.sentimental_model.predict(df_processed)
 
-        df_processed.to_pickle(f"./../data/new_webscrapping_clean/{company_name}.pkl")
+        df_processed.to_pickle(f"./../data/webscrapped/processed/twitter/{company_name}.pkl")
         df_predicted.to_csv(
-            f"./../data/new_webscrapping_predicted/{company_name}.csv",
+            f"./../data/webscrapped/predicted/twitter/{company_name}.csv",
             index=False,
         )
 
-        self._concatenated_prediction(dir="./../data/new_webscrapping_predicted/")
+        self._concatenated_prediction(dir="./../data/webscrapped/predicted/twitter/")
 
     def directory_process(self, dir: str | None = None):
         """
@@ -81,4 +81,4 @@ class LaunchSystem:
 
 if __name__ == "__main__":
     ls = LaunchSystem()
-    ls.company_process("webscraped_bp_plc")
+    ls.company_process("webscraped_bhp_group")
