@@ -167,7 +167,7 @@ class StatisticalTests:
         else:
             print("The series is likely stationary.")
 
-    def plot_and_save_acf_pacf(self, series: pd.Series, filename: str = None):
+    def acf_pacf_test(self, series: pd.Series, filename: str = None):
         plt.figure(figsize=(12, 6))
 
         plt.subplot(121)
@@ -230,16 +230,21 @@ class StatisticalTests:
             plt.savefig(f"{self.save_path}ccf_plot_{filename}.png")
         plt.close(fig)
 
-    def compute_statistical_tests(self, x: pd.Series, y: pd.Series = None):
+    def compute_statistical_tests(
+        self, x: pd.Series, y: pd.Series = None, filename: str = None
+    ):
         self.dickey_fuller_test(x)
         self.kpss_test(x)
-        self.plot_and_save_acf_pacf(x)
+        self.acf_pacf_test(x)
 
         if y:
             self.dickey_fuller_test(y)
             self.kpss_test(y)
-            self.plot_and_save_acf_pacf(y)
-            self.plot_ccf(x, y, lag_range=30, filename="example.png")
+            self.acf_pacf_test(y)
+
+            user_input = input("are the tests ok? yes or no")
+            if user_input == "yes":
+                self.plot_ccf(x, y, lag_range=30, filename=filename)
 
 
 class DailyModelEvaluation(StatisticalTests):
@@ -356,9 +361,16 @@ class DailyModelEvaluation(StatisticalTests):
         # short-long == tweets signals
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
+        # Zfill ou similaire, en avant pour les tweets
+
+        # voir si un VIF pourrait simuler l'impact dans les tweets
+        # pour justifier une imputation en avant
+
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_signal", rsuffix="_market"
         )
+
+        # compute a date selection instead of merging
         correlation_results = {}
 
         for signal_column in evaluation_df.columns:
@@ -369,7 +381,7 @@ class DailyModelEvaluation(StatisticalTests):
 
                 self.dickey_fuller_test(self.adjusted_returns[base_name].dropna())
                 self.kpss_test(self.adjusted_returns[base_name].dropna())
-                self.plot_and_save_acf_pacf(
+                self.acf_pacf_test(
                     self.adjusted_returns[base_name].dropna(), filename=base_name
                 )
 
