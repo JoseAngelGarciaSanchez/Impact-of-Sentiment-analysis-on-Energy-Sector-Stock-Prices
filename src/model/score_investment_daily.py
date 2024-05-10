@@ -1,12 +1,13 @@
 import os
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 import statsmodels.api as sm
-from matplotlib.ticker import MaxNLocator
-from statsmodels.tsa.stattools import adfuller
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.stattools import adfuller, kpss
 
 from parameters import company_to_stock_dict
 
@@ -102,9 +103,7 @@ class Preprocessing:
         """
 
         selected_columns = [
-            value
-            for value in company_to_stock_dict.values()
-            if value in df.columns
+            value for value in company_to_stock_dict.values() if value in df.columns
         ]
         selected_returns = df.loc[:, selected_columns]
 
@@ -127,15 +126,135 @@ class Preprocessing:
         return grouped_analysed_tweets, returns
 
 
-class DailyModelEvaluation:
+class StatisticalTests:
+    def __init__(self, save_path) -> None:
+        self.save_path = save_path
+
+    def dickey_fuller_test(self, series: pd.Series):
+        # Perform Dickey-Fuller test
+        result = adfuller(series)
+
+        # Output the results
+        print("ADF Statistic:", result[0])
+        print("p-value:", result[1])
+        print("Critical Values:")
+        for key, value in result[4].items():
+            print(f"\t{key}: {value}")
+
+        # Interpretation
+        if result[1] < 0.05:
+            print(
+                "Reject the null hypothesis (H0), the data does not have a unit root and is stationary."
+            )
+        else:
+            print(
+                "Fail to reject the null hypothesis (H0), the data has a unit root and is non-stationary."
+            )
+
+    def kpss_test(self, series: pd.Series):
+        statistic, p_value, n_lags, critical_values = kpss(
+            series, regression="c", nlags="auto"
+        )
+        print(f"KPSS Statistic: {statistic}")
+        print(f"p-value: {p_value}")
+        print("Critical Values:")
+        for key, value in critical_values.items():
+            print(f"\t{key}: {value}")
+
+        # Interpreting the p-value
+        if p_value < 0.05:
+            print("The series is likely non-stationary.")
+        else:
+            print("The series is likely stationary.")
+
+    def plot_and_save_acf_pacf(self, series: pd.Series, filename: str = None):
+        plt.figure(figsize=(12, 6))
+
+        plt.subplot(121)
+        plot_acf(series, ax=plt.gca(), lags=40)
+        plt.title("Autocorrelation Function")
+
+        plt.subplot(122)
+        plot_pacf(series, ax=plt.gca(), lags=40)
+        plt.title("Partial Autocorrelation Function")
+
+        plt.tight_layout()
+        if filename:
+            plt.savefig(f"{self.save_path}acf_pacf_plot_{filename}.png")
+
+    def plot_ccf(
+        self,
+        x,
+        y,
+        lag_range,
+        filename: str = "ccf_plot.png",
+        figsize=(12, 5),
+        title_fontsize=15,
+        xlabel_fontsize=16,
+        ylabel_fontsize=16,
+    ):
+        """
+        Plot cross-correlation between series x and y.
+        """
+
+        title = "{} & {}".format(x.name, y.name)
+        lags = np.arange(
+            -lag_range, lag_range + 1
+        )  # This should include zero, hence +1
+        ccf_yx = sm.tsa.stattools.ccf(y, x, adjusted=False)[
+            : lag_range + 1
+        ]  # Include up to the lag_range
+        ccf_xy = sm.tsa.stattools.ccf(x, y, adjusted=False)[
+            : lag_range + 1
+        ]  # Same here
+
+        ccf_yx = ccf_yx[1:][
+            ::-1
+        ]  # Reverse and ignore the zero-lag, this should now be of length lag_range
+        cc = np.concatenate(
+            [ccf_yx, ccf_xy]
+        )  # Ensure this concatenation results in 2*lag_range + 1 elements
+
+        sigma = 1 / np.sqrt(len(x))  # Standard error for confidence intervals
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.vlines(lags, 0, cc, label="CCF")  # Ensure lags and cc are of same length
+        ax.axhline(0, color="black", linewidth=1.0)
+        ax.axhline(2 * sigma, color="red", linestyle="-.", linewidth=0.6)
+        ax.axhline(-2 * sigma, color="red", linestyle="-.", linewidth=0.6)
+        ax.set_xlabel("Lag", fontsize=xlabel_fontsize)
+        ax.set_ylabel("Cross-Correlation", fontsize=ylabel_fontsize)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        fig.suptitle(title, fontsize=title_fontsize, fontweight="bold", y=0.95)
+
+        if filename:
+            plt.savefig(f"{self.save_path}ccf_plot_{filename}.png")
+        plt.close(fig)
+
+    def compute_statistical_tests(self, x: pd.Series, y: pd.Series = None):
+        self.dickey_fuller_test(x)
+        self.kpss_test(x)
+        self.plot_and_save_acf_pacf(x)
+
+        if y:
+            self.dickey_fuller_test(y)
+            self.kpss_test(y)
+            self.plot_and_save_acf_pacf(y)
+            self.plot_ccf(x, y, lag_range=30, filename="example.png")
+
+
+class DailyModelEvaluation(StatisticalTests):
     def __init__(
         self,
         analysed_tweets: pd.DataFrame,
         returns: pd.DataFrame,
+        save_path: os.PathLike,
         verbose: bool = False,
-    ) -> None:        
+    ) -> None:
+        super().__init__(save_path)
         self.grouped_analysed_tweets = analysed_tweets.copy()
         self.adjusted_returns = returns.copy()
+
+        self.verbose = verbose
 
     def short_or_long(self):
         """new dataframe with buy or sell at t"""
@@ -157,7 +276,7 @@ class DailyModelEvaluation:
                 "positive_ratio"
             ].shift(1)
 
-            # faire log ou la difference premiere, test de racines unitaire 
+            # faire log ou la difference premiere, test de racines unitaire
             # pour voir si les moments sont invariants avec le temps
 
             stock_ratios.loc[:, "buy_or_sell"] = (
@@ -227,59 +346,7 @@ class DailyModelEvaluation:
             orient="index",
         )
 
-    def plot_ccf(self, x, y, lag_range, filename="ccf_plot.png", figsize=(12, 5), title_fontsize=15, xlabel_fontsize=16, ylabel_fontsize=16):
-        """
-        Plot cross-correlation between series x and y.
-        """
-        #self.plot_ccf(signal_data, market_data, lag_range=30, filename=f"output_ccf_plot_{base_name}.png")
-
-        title = "{} & {}".format(x.name, y.name)
-        lags = np.arange(-lag_range, lag_range + 1)  # This should include zero, hence +1
-        ccf_yx = sm.tsa.stattools.ccf(y, x, adjusted=False)[:lag_range + 1]  # Include up to the lag_range
-        ccf_xy = sm.tsa.stattools.ccf(x, y, adjusted=False)[:lag_range + 1]  # Same here
-
-        ccf_yx = ccf_yx[1:][::-1]  # Reverse and ignore the zero-lag, this should now be of length lag_range
-        cc = np.concatenate([ccf_yx, ccf_xy])  # Ensure this concatenation results in 2*lag_range + 1 elements
-
-        sigma = 1 / np.sqrt(len(x))  # Standard error for confidence intervals
-        fig, ax = plt.subplots(figsize=figsize)
-        ax.vlines(lags, 0, cc, label='CCF')  # Ensure lags and cc are of same length
-        ax.axhline(0, color="black", linewidth=1.0)
-        ax.axhline(2 * sigma, color="red", linestyle='-.', linewidth=0.6)
-        ax.axhline(-2 * sigma, color="red", linestyle='-.', linewidth=0.6)
-        ax.set_xlabel('Lag', fontsize=xlabel_fontsize)
-        ax.set_ylabel('Cross-Correlation', fontsize=ylabel_fontsize)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        fig.suptitle(title, fontsize=title_fontsize, fontweight='bold', y=0.95)
-
-        plt.savefig(filename)
-        plt.close(fig)
-        
-        
-    def __dickey_fuller_test(self, series: pd.Series):
-        # Perform Dickey-Fuller test
-        result = adfuller(series)
-
-        # Output the results
-        print("ADF Statistic:", result[0])
-        print("p-value:", result[1])
-        print("Critical Values:")
-        for key, value in result[4].items():
-            print(f"\t{key}: {value}")
-
-        # Interpretation
-        if result[1] < 0.05:
-            print(
-                "Reject the null hypothesis (H0), the data does not have a unit root and is stationary."
-            )
-        else:
-            print(
-                "Fail to reject the null hypothesis (H0), the data has a unit root and is non-stationary."
-            )
-
-    
     def compute_signal_market_correlation(self):
-        
         """
         Compute correaltion between signal (webscrapped sentiments)
         and stocks market.
@@ -300,9 +367,11 @@ class DailyModelEvaluation:
                 print(f"----Company: {base_name}")
                 market_column = base_name + "_market"
 
-                if self.verbose:
-                    print(f'[+]----Dickey-Fuller test for market data without weekends: {base_name}')
-                    self.__dickey_fuller_test(self.adjusted_returns[base_name].dropna())
+                self.dickey_fuller_test(self.adjusted_returns[base_name].dropna())
+                self.kpss_test(self.adjusted_returns[base_name].dropna())
+                self.plot_and_save_acf_pacf(
+                    self.adjusted_returns[base_name].dropna(), filename=base_name
+                )
 
                 if market_column in evaluation_df.columns:
                     # Drop NaN for week-end to verify!!!!!
@@ -318,13 +387,13 @@ class DailyModelEvaluation:
                         ).mean()
                         # mask = signal_data_moving_average.isna()
 
-                        if self.verbose:
-                            print("[+]----Dickey-Fuller test for signal data")
-                            self.__dickey_fuller_test(signal_data)
-                            # print("----signal_data-moving_average")
-                            # self.__dickey_fuller_test(signal_data_moving_average)
-                            # print("----market_data")
-                            # self.__dickey_fuller_test(market_data)
+                        # if self.verbose:
+                        # print("[+]----Dickey-Fuller test for signal data")
+                        # self.dickey_fuller_test(signal_data)
+                        # print("----signal_data-moving_average")
+                        # self.dickey_fuller_test(signal_data_moving_average)
+                        # print("----market_data")
+                        # self.dickey_fuller_test(market_data)
 
                         # Compute correlation, here the correlation is weird
                         pearson_corr, p_value = pearsonr(signal_data, market_data)
@@ -343,10 +412,13 @@ class DailyModelEvaluation:
                             pearson_corr,
                             p_value,
                         ]
-                        
-                        print("Calling plot_ccf with:", signal_data, market_data, 30, f"output_ccf_plot_{base_name}.png")
-                        self.plot_ccf(signal_data, market_data, lag_range=30, filename=f"output_ccf_plot_{base_name}.png")
 
+                        self.plot_ccf(
+                            signal_data,
+                            market_data,
+                            lag_range=30,
+                            filename=base_name,
+                        )
 
         # Create DataFrame with appropriate column names
         return pd.DataFrame.from_dict(
@@ -433,18 +505,17 @@ class DailyModelEvaluation:
                 plt.close()
 
     def launch(self):
-        save_path = "./../../data/results/daily_model/"
 
         self.short_or_long()
         self.evaluate_model_accuracy()
         self.compute_signal_market_correlation()
-        self.save_results_to_excel(save_path=save_path)
-        self.visualize_courbe(save_path=save_path)
+        self.save_results_to_excel(save_path=self.save_path)
+        self.visualize_courbe(save_path=self.save_path)
 
 
 if __name__ == "__main__":
     WEBSCRAPPED_DATA_PATH = (
-        "./../../data/new_webscrapping_predicted/concatenated_prediction.csv"
+        "./../../data/webscrapped/predicted/twitter/concatenated_prediction.csv"
     )
     DAILY_STOCKS_RETURNS_PATH = "./../../data/stocks_daily_data.xlsx"
     analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
@@ -456,5 +527,9 @@ if __name__ == "__main__":
     )
 
     model_evaluator = DailyModelEvaluation(
-        grouped_analysed_tweets, df_returns, verbose=True)    
+        grouped_analysed_tweets,
+        df_returns,
+        save_path="./../../data/results/daily_model/",
+        verbose=True,
+    )
     model_evaluator.launch()
