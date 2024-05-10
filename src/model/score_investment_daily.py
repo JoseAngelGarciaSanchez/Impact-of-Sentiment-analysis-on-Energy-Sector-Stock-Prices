@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 import statsmodels.api as sm
+from statsmodels.tsa.stattools import adfuller
 
-from parameters import company_to_stock_dict
+from .parameters import company_to_stock_dict
 
 
 np.random.seed(42)
@@ -100,9 +101,7 @@ class Preprocessing:
         """
 
         selected_columns = [
-            value
-            for value in company_to_stock_dict.values()
-            if value in df.columns
+            value for value in company_to_stock_dict.values() if value in df.columns
         ]
         selected_returns = df.loc[:, selected_columns]
 
@@ -126,9 +125,16 @@ class Preprocessing:
 
 
 class DailyModelEvaluation:
-    def __init__(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame) -> None:
+    def __init__(
+        self,
+        analysed_tweets: pd.DataFrame,
+        returns: pd.DataFrame,
+        verbose: bool = False,
+    ) -> None:
         self.grouped_analysed_tweets = analysed_tweets.copy()
         self.adjusted_returns = returns.copy()
+
+        self.verbose = verbose
 
     def short_or_long(self):
         """new dataframe with buy or sell at t"""
@@ -145,12 +151,12 @@ class DailyModelEvaluation:
             mask = positive_ratios_by_day["company"] == company
             stock_ratios = positive_ratios_by_day.loc[mask, :]
 
-            # selection of the period
+            # lag the sentiments 1 day
             stock_ratios.loc[:, "positive_ratio_shifted"] = stock_ratios[
                 "positive_ratio"
             ].shift(1)
 
-            # faire log ou la difference premiere, test de racines unitaire 
+            # faire log ou la difference premiere, test de racines unitaire
             # pour voir si les moments sont invariants avec le temps
 
             stock_ratios.loc[:, "buy_or_sell"] = (
@@ -220,8 +226,36 @@ class DailyModelEvaluation:
             orient="index",
         )
 
+    def __dickey_fuller_test(self, series: pd.Series):
+        # Perform Dickey-Fuller test
+        result = adfuller(series)
+
+        # Output the results
+        print("ADF Statistic:", result[0])
+        print("p-value:", result[1])
+        print("Critical Values:")
+        for key, value in result[4].items():
+            print(f"\t{key}: {value}")
+
+        # Interpretation
+        if result[1] < 0.05:
+            print(
+                "Reject the null hypothesis (H0), the data does not have a unit root and is stationary."
+            )
+        else:
+            print(
+                "Fail to reject the null hypothesis (H0), the data has a unit root and is non-stationary."
+            )
+
     def compute_signal_market_correlation(self):
+        """
+        Compute correaltion between signal (webscrapped sentiments)
+        and stocks market.
+        """
+        # check if market is stationnary
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
+
+        # short-long == tweets signals
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
         evaluation_df = self.shortlongdf.join(
@@ -233,25 +267,44 @@ class DailyModelEvaluation:
         for signal_column in evaluation_df.columns:
             if "_signal" in signal_column:
                 base_name = signal_column.split("_signal")[0]
+                print(f"----Company: {base_name}")
                 market_column = base_name + "_market"
 
-                if market_column in evaluation_df.columns:
+                if self.verbose:
+                    print(f'[+]----Dickey-Fuller test for market data without weekends: {base_name}')
+                    self.__dickey_fuller_test(self.adjusted_returns[base_name].dropna())
 
+                if market_column in evaluation_df.columns:
+                    # Drop NaN for week-end to verify!!!!!
                     clean_df = evaluation_df[[signal_column, market_column]].dropna()
-                    print(evaluation_df, clean_df)
+
                     if (
                         not clean_df.empty and len(clean_df.dropna()) >= 2
                     ):  # Check if there's enough data
                         signal_data = clean_df[signal_column]
                         market_data = clean_df[market_column]
 
-                        # Compute correlation
+                        signal_data_moving_average = signal_data.rolling(
+                            window=40
+                        ).mean()
+                        # mask = signal_data_moving_average.isna()
+
+                        if self.verbose:
+                            print("[+]----Dickey-Fuller test for signal data")
+                            self.__dickey_fuller_test(signal_data)
+                            # print("----signal_data-moving_average")
+                            # self.__dickey_fuller_test(signal_data_moving_average)
+                            # print("----market_data")
+                            # self.__dickey_fuller_test(market_data)
+
+                        # Compute correlation, here the correlation is weird
                         pearson_corr, p_value = pearsonr(signal_data, market_data)
+
                         corr = sm.tsa.stattools.ccf(
-                            signal_data, market_data, adjusted=False
+                            signal_data, market_data, adjusted=False, alpha=0.05
                         )
 
-                        # Determine significance
+                        # Determine significance, here significances are not OK, to check
                         # significance = "***" if p_value and p_value < 0.05 else ""
                         formatted_correlation = f"{corr}" if corr is not None else "N/A"
 
@@ -261,7 +314,8 @@ class DailyModelEvaluation:
                             pearson_corr,
                             p_value,
                         ]
-
+            print('\n')
+        # Do we need to stationnarized market data?
         # Create DataFrame with appropriate column names
         return pd.DataFrame.from_dict(
             correlation_results,
@@ -369,5 +423,7 @@ if __name__ == "__main__":
         analysed_tweets, df_returns
     )
 
-    model_evaluator = DailyModelEvaluation(grouped_analysed_tweets, df_returns)
+    model_evaluator = DailyModelEvaluation(
+        grouped_analysed_tweets, df_returns, verbose=True
+    )
     model_evaluator.launch()
