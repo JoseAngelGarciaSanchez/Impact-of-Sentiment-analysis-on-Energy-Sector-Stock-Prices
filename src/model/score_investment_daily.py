@@ -17,7 +17,7 @@ class Preprocessing:
     def __init__(self) -> None:
         pass
 
-    def process_analysed_tweets(self, df: pd.DataFrame):
+    def __process_analysed_tweets(self, df: pd.DataFrame):
         # Format PostDate to datetime
         df["PostDate"] = pd.to_datetime(df["PostDate"])
 
@@ -36,36 +36,13 @@ class Preprocessing:
         )
         return df
 
-    def process_returns(self, df: pd.DataFrame):
+    def __process_returns(self, df: pd.DataFrame):
         df = df / 100
 
         # Week-end
         nan_mask = df.isna().all(axis=1)
         df = df.loc[~nan_mask, :]
         return df
-
-    def process(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame):
-        analysed_tweets = self.process_analysed_tweets(analysed_tweets)
-        returns = self.process_returns(returns)
-
-        return analysed_tweets, returns
-
-
-class DailyModelEvaluation:
-    def __init__(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame) -> None:
-        self.analysed_tweets = analysed_tweets
-        self.df_returns = returns
-
-    def _correlation_by_company(
-        self,
-    ):
-        """
-        by : day, month, year
-        """
-
-        self.positive_daily_ratios = self.__group_model_results(df=self.analysed_tweets)
-
-        self.adjusted_returns = self.__adjust_returns_with_company_names()
 
     def __group_model_results(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -117,17 +94,17 @@ class DailyModelEvaluation:
 
         return positive_ratios_by_day
 
-    def __adjust_returns_with_company_names(self):
+    def __adjust_returns_with_company_names(self, df: pd.DataFrame):
         """
-        Adapt returns names to company names
+        Rename returns to webscrapped names
         """
 
         selected_columns = [
             value
             for value in company_to_stock_dict.values()
-            if value in self.df_returns.columns
+            if value in df.columns
         ]
-        selected_returns = self.df_returns.loc[:, selected_columns]
+        selected_returns = df.loc[:, selected_columns]
 
         selected_returns.rename(
             columns={v: k for k, v in company_to_stock_dict.items()}, inplace=True
@@ -138,12 +115,26 @@ class DailyModelEvaluation:
 
         return selected_returns
 
+    def process(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame):
+        analysed_tweets = self.__process_analysed_tweets(analysed_tweets)
+        grouped_analysed_tweets = self.__group_model_results(analysed_tweets)
+
+        returns = self.__process_returns(returns)
+        returns = self.__adjust_returns_with_company_names(returns)
+
+        return grouped_analysed_tweets, returns
+
+
+class DailyModelEvaluation:
+    def __init__(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame) -> None:
+        self.grouped_analysed_tweets = analysed_tweets.copy()
+        self.adjusted_returns = returns.copy()
+
     def short_or_long(self):
         """new dataframe with buy or sell at t"""
-        # print(self.positive_daily_ratios)
-        positive_ratios_by_day = self.positive_daily_ratios.copy()
 
-        # positive_ratios_by_day = self.__group_model_results(self.analysed_tweets)
+        positive_ratios_by_day = self.grouped_analysed_tweets.copy()
+
         date_index = positive_ratios_by_day["yearmonthday"].unique().tolist()
         companies = positive_ratios_by_day["company"].unique().tolist()
 
@@ -158,6 +149,9 @@ class DailyModelEvaluation:
             stock_ratios.loc[:, "positive_ratio_shifted"] = stock_ratios[
                 "positive_ratio"
             ].shift(1)
+
+            # faire log ou la difference premiere, test de racines unitaire 
+            # pour voir si les moments sont invariants avec le temps
 
             stock_ratios.loc[:, "buy_or_sell"] = (
                 stock_ratios["positive_ratio_shifted"] - 0.5
@@ -193,7 +187,7 @@ class DailyModelEvaluation:
             else:
                 return False
 
-        for index, row in evaluation_df.iterrows():
+        for _, row in evaluation_df.iterrows():
             for column in evaluation_df.columns:
                 if "_buysell" in column:
                     company_name = column.split("_buysell")[0]
@@ -242,27 +236,41 @@ class DailyModelEvaluation:
                 market_column = base_name + "_market"
 
                 if market_column in evaluation_df.columns:
-                    
+
                     clean_df = evaluation_df[[signal_column, market_column]].dropna()
-                    print(evaluation_df,clean_df)
-                    if not clean_df.empty and len(clean_df.dropna()) >= 2:  # Check if there's enough data
+                    print(evaluation_df, clean_df)
+                    if (
+                        not clean_df.empty and len(clean_df.dropna()) >= 2
+                    ):  # Check if there's enough data
                         signal_data = clean_df[signal_column]
                         market_data = clean_df[market_column]
 
                         # Compute correlation
                         pearson_corr, p_value = pearsonr(signal_data, market_data)
-                        corr = sm.tsa.stattools.ccf(signal_data, market_data, adjusted=False)
+                        corr = sm.tsa.stattools.ccf(
+                            signal_data, market_data, adjusted=False
+                        )
 
                         # Determine significance
-                        #significance = "***" if p_value and p_value < 0.05 else ""
+                        # significance = "***" if p_value and p_value < 0.05 else ""
                         formatted_correlation = f"{corr}" if corr is not None else "N/A"
 
                         # Store both correlation and significance under the same key
-                        correlation_results[base_name] = [formatted_correlation, pearson_corr, p_value]
+                        correlation_results[base_name] = [
+                            formatted_correlation,
+                            pearson_corr,
+                            p_value,
+                        ]
 
         # Create DataFrame with appropriate column names
         return pd.DataFrame.from_dict(
-            correlation_results, orient="index", columns=["Cross-Correlation", "Pearson Correlation (need to stationarize)", "P-value"]
+            correlation_results,
+            orient="index",
+            columns=[
+                "Cross-Correlation",
+                "Pearson Correlation (need to stationarize)",
+                "P-value",
+            ],
         )
 
     def save_results_to_excel(self, save_path):
@@ -339,9 +347,8 @@ class DailyModelEvaluation:
                 plt.close()
 
     def launch(self):
-        save_path = './../../data/results/daily_model/'
+        save_path = "./../../data/results/daily_model/"
 
-        self._correlation_by_company()
         self.short_or_long()
         self.evaluate_model_accuracy()
         self.compute_signal_market_correlation()
