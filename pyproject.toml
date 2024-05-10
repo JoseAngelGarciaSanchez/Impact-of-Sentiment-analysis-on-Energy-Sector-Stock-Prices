@@ -26,6 +26,7 @@ torch = "^2.2.2"
 tensorflow = "^2.16.1"
 tf-keras = "^2.16.0"
 iprogress = "^0.4"
+statsmodels = "^0.14.2"
 
 
 [build-system]
