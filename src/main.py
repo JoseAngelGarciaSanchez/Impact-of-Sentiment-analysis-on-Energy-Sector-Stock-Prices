@@ -44,7 +44,7 @@ class LaunchSystem:
         company_name: str | None = 'webscraped_stora_enso'
         ----example: "webscraped_stora_enso"
         """
-        df = pd.read_csv(f"./data/new_webscrapping/{company_name}.csv")
+        df = pd.read_csv(f"./../data/new_webscrapping/{company_name}.csv")
         df_processed = self._processing_tweets(df=df)
         df_predicted = self.sentimental_model.predict(df_processed)
 
@@ -76,9 +76,9 @@ class LaunchSystem:
                 )
             break
 
-        self._concatenated_prediction(dir="./data/new_webscrapping_predicted/")
+        self._concatenated_prediction(dir="./../data/new_webscrapping_predicted/")
 
 
 if __name__ == "__main__":
     ls = LaunchSystem()
-    ls.company_process("webscraped_stora_enso")
+    ls.company_process("webscraped_bp_plc")
