@@ -260,6 +260,25 @@ class DailyModelEvaluation(StatisticalTests):
         self.adjusted_returns = returns.copy()
 
         self.verbose = verbose
+        self.strong_pos_threshold = 0.5
+        self.strong_neg_threshold = -0.5
+        self.neutral_threshold = 0.5
+        self.shortlongdf = None  # Initialize shortlongdf attribute
+
+    def update_thresholds(self, strong_pos_threshold, strong_neg_threshold, neutral_threshold):
+        self.strong_pos_threshold = strong_pos_threshold
+        self.strong_neg_threshold = strong_neg_threshold
+        self.neutral_threshold = neutral_threshold
+
+    def prediction_matches(self, signal, market_return):
+        if signal > self.strong_pos_threshold and market_return > 0:  # strong positive signal
+            return True
+        elif signal < self.strong_neg_threshold and market_return < 0:  # strong negative signal
+            return True
+        elif -self.neutral_threshold <= signal <= self.neutral_threshold and -0.05 <= market_return <= 0.05:  # neutral signal
+            return True
+        else:
+            return False
 
     def short_or_long(self):
         """new dataframe with buy or sell at t"""
@@ -305,19 +324,6 @@ class DailyModelEvaluation(StatisticalTests):
 
         accuracy_metrics = {}
 
-        def prediction_matches(signal, market_return):
-
-            if signal > 0.5 and market_return > 0:  # strong positive signal
-                return True
-            elif signal < -0.5 and market_return < 0:  # strong negative signal
-                return True
-            elif (
-                -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05
-            ):  # neutral signal
-                return True
-            else:
-                return False
-
         for _, row in evaluation_df.iterrows():
             for column in evaluation_df.columns:
                 if "_buysell" in column:
@@ -350,6 +356,76 @@ class DailyModelEvaluation(StatisticalTests):
             },
             orient="index",
         )
+
+    def evaluate_model_accuracy_with_thresholds(self, thresholds):
+        self.short_or_long()  # Ensure shortlongdf is created
+        self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
+        self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
+
+        evaluation_df = self.shortlongdf.join(
+            self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
+        )
+        print(evaluation_df)
+        results = []
+        for strong_pos_threshold, strong_neg_threshold, neutral_threshold in thresholds:
+            accuracy_metrics = {}
+
+            def prediction_matches(signal, market_return):
+                if signal > strong_pos_threshold and market_return > 0:  # strong positive signal
+                    return True
+                elif signal < strong_neg_threshold and market_return < 0:  # strong negative signal
+                    return True
+                elif -neutral_threshold <= signal <= neutral_threshold and -0.05 <= market_return <= 0.05:  # neutral signal
+                    return True
+                else:
+                    return False
+
+            for _, row in evaluation_df.iterrows():
+                for column in evaluation_df.columns:
+                    if "_buysell" in column:
+                        company_name = column.split("_buysell")[0]
+                        market_column = company_name + "_market"
+
+                        if market_column in evaluation_df.columns:
+                            if company_name not in accuracy_metrics:
+                                accuracy_metrics[company_name] = {
+                                    "correct_predictions": 0,
+                                    "total_signals": 0,
+                                }
+
+                            accuracy_metrics[company_name]["total_signals"] += 1
+
+                            if prediction_matches(row[column], row[market_column]):
+                                accuracy_metrics[company_name]["correct_predictions"] += 1
+
+            accuracy_df = pd.DataFrame.from_dict(
+                {
+                    stock: {
+                        "Accuracy (%)": (
+                            (metrics["correct_predictions"] / metrics["total_signals"])
+                            * 100
+                            if metrics["total_signals"] > 0
+                            else 0
+                        )
+                    }
+                    for stock, metrics in accuracy_metrics.items()
+                },
+                orient="index",
+            )
+
+            mean_accuracy = accuracy_df["Accuracy (%)"].mean()
+            results.append({
+                "strong_pos_threshold": strong_pos_threshold,
+                "strong_neg_threshold": strong_neg_threshold,
+                "neutral_threshold": neutral_threshold,
+                "mean_accuracy": mean_accuracy,
+            })
+
+            print(f"Thresholds: {strong_pos_threshold}, {strong_neg_threshold}, {neutral_threshold}")
+            print(accuracy_df)
+
+        return pd.DataFrame(results)
+
 
     def compute_signal_market_correlation(self):
         """
@@ -524,7 +600,27 @@ class DailyModelEvaluation(StatisticalTests):
         self.save_results_to_excel(save_path=self.save_path)
         self.visualize_courbe(save_path=self.save_path)
 
+def sensitivity_analysis(thresholds, grouped_analysed_tweets, df_returns, save_path):
+    model_evaluator = DailyModelEvaluation(
+        grouped_analysed_tweets,
+        df_returns,
+        save_path=save_path,
+        verbose=False
+    )
+    
+    results = model_evaluator.evaluate_model_accuracy_with_thresholds(thresholds)
+    return results
 
+def plot_sensitivity_analysis(results, save_path):
+    plt.figure(figsize=(10, 6))
+    plt.plot(results['strong_pos_threshold'], results['mean_accuracy'], marker='o', linestyle='-')
+    plt.xlabel('Strong Positive Threshold')
+    plt.ylabel('Mean Accuracy (%)')
+    plt.title('Sensitivity Analysis of Thresholds')
+    plt.grid(True)
+    plt.savefig(os.path.join(save_path, 'sensitivity_analysis_plot.png'))
+    plt.close()
+    
 if __name__ == "__main__":
     WEBSCRAPPED_DATA_PATH = (
         "./../../data/webscrapped/predicted/twitter/concatenated_prediction.csv"
@@ -538,6 +634,34 @@ if __name__ == "__main__":
         analysed_tweets, df_returns
     )
 
+    # Define a range of threshold values for analysis
+    thresholds = [
+        (0.1, -0.1, 0.1),
+        (0.15, -0.15, 0.15),
+        (0.2, -0.2, 0.2),
+        (0.25, -0.25, 0.25),
+        (0.3, -0.3, 0.3),
+        (0.35, -0.35, 0.35),
+        (0.4, -0.4, 0.4),
+        (0.45, -0.45, 0.45),
+        (0.5, -0.5, 0.5),
+        (0.55, -0.55, 0.55),
+        (0.6, -0.6, 0.6),
+        (0.65, -0.65, 0.65),
+        (0.7, -0.7, 0.7),
+        (0.75, -0.75, 0.75),
+        (0.8, -0.8, 0.8),
+        (0.85, -0.85, 0.85),
+        (0.9, -0.9, 0.9),
+        (0.95, -0.95, 0.95),
+        (1.0, -1.0, 1.0)
+    ]
+
+    # Run sensitivity analysis
+    results = sensitivity_analysis(thresholds, grouped_analysed_tweets, df_returns, save_path="./../../data/results/daily_model/")
+    # Save plot
+    plot_sensitivity_analysis(results, save_path="./../../data/results/daily_model/")
+    # Optionally, continue with the normal evaluation process using default thresholds
     model_evaluator = DailyModelEvaluation(
         grouped_analysed_tweets,
         df_returns,
