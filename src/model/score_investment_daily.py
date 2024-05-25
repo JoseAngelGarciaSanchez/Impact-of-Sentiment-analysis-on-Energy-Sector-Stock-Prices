@@ -467,7 +467,7 @@ class DailyModelEvaluation(StatisticalTests):
                     signal_data = signal_data.apply(lambda x: 1 if x > 0.5 else (-1 if x < -0.5 else 0))
                     if len(signal_data) > 1 and len(market_data) > 1:  # Ensure there's enough data
                         # Compute Pearson correlation
-                        pearson_corr, p_value = spearmanr(signal_data, market_data)
+                        pearson_corr, p_value = pearson_corr(signal_data, market_data)
 
                         correlation_results[company_name] = {
                             "Pearson Correlation": pearson_corr,
