@@ -324,6 +324,16 @@ class DailyModelEvaluation(StatisticalTests):
 
         accuracy_metrics = {}
 
+        def prediction_matches(signal, market_return):
+            if signal > 0.5 and market_return > 0:  # strong positive signal
+                return True
+            elif signal < -0.5 and market_return < 0:  # strong negative signal
+                return True
+            elif -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05:  # neutral signal
+                return True
+            else:
+                return False
+            
         for _, row in evaluation_df.iterrows():
             for column in evaluation_df.columns:
                 if "_buysell" in column:
@@ -421,103 +431,59 @@ class DailyModelEvaluation(StatisticalTests):
                 "mean_accuracy": mean_accuracy,
             })
 
-            print(f"Thresholds: {strong_pos_threshold}, {strong_neg_threshold}, {neutral_threshold}")
-            print(accuracy_df)
 
         return pd.DataFrame(results)
-
-
     def compute_signal_market_correlation(self):
         """
-        Compute correaltion between signal (webscrapped sentiments)
-        and stocks market.
+        Compute correlation between lagged NLP scores (buy/sell signals)
+        and market returns based on a 0.5 threshold for each date.
         """
-        self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns.index)
-
-        # short-long == tweets signals
+        self.update_thresholds(0.5, -0.5, 0.5)  # Set thresholds to 0.5
+        self.short_or_long()  # Ensure shortlongdf is created
+        self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
-        # Zfill ou similaire, en avant pour les tweets
-
-        # voir si un VIF pourrait simuler l'impact dans les tweets
-        # pour justifier une imputation en avant
-
         evaluation_df = self.shortlongdf.join(
-            self.adjusted_returns, how="inner", lsuffix="_signal", rsuffix="_market"
+            self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
         )
 
-        # compute a date selection instead of merging
         correlation_results = {}
 
-        for signal_column in evaluation_df.columns:
-            if "_signal" in signal_column:
-                base_name = signal_column.split("_signal")[0]
-                print(f"----Company: {base_name}")
-                market_column = base_name + "_market"
-
-                self.dickey_fuller_test(self.adjusted_returns[base_name].dropna())
-                self.kpss_test(self.adjusted_returns[base_name].dropna())
-                self.acf_pacf_test(
-                    self.adjusted_returns[base_name].dropna(), filename=base_name
-                )
+        for column in evaluation_df.columns:
+            if "_buysell" in column:
+                company_name = column.split("_buysell")[0]
+                market_column = company_name + "_market"
 
                 if market_column in evaluation_df.columns:
-                    # Drop NaN for week-end to verify!!!!!
-                    clean_df = evaluation_df[[signal_column, market_column]].dropna()
-                    if (
-                        not clean_df.empty and len(clean_df.dropna()) >= 2
-                    ):  # Check if there's enough data
-                        signal_data = clean_df[signal_column]
-                        market_data = clean_df[market_column]
+                    signal_data = evaluation_df[column].dropna()
+                    market_data = evaluation_df[market_column].dropna()
 
-                        signal_data_moving_average = signal_data.rolling(
-                            window=40
-                        ).mean()
-                        # mask = signal_data_moving_average.isna()
+                    # Align both series to the same dates
+                    combined_data = pd.concat([signal_data, market_data], axis=1).dropna()
+                    signal_data = combined_data.iloc[:, 0]
+                    market_data = combined_data.iloc[:, 1]
 
-                        # if self.verbose:
-                        # print("[+]----Dickey-Fuller test for signal data")
-                        # self.dickey_fuller_test(signal_data)
-                        # print("----signal_data-moving_average")
-                        # self.dickey_fuller_test(signal_data_moving_average)
-                        # print("----market_data")
-                        # self.dickey_fuller_test(market_data)
-
-                        # Compute correlation, here the correlation is weird
+                    # Apply threshold logic to signal_data
+                    signal_data = signal_data.apply(lambda x: 1 if x > 0.5 else (-1 if x < -0.5 else 0))
+                    if len(signal_data) > 1 and len(market_data) > 1:  # Ensure there's enough data
+                        # Compute Pearson correlation
                         pearson_corr, p_value = pearsonr(signal_data, market_data)
 
-                        corr = sm.tsa.stattools.ccf(
-                            signal_data, market_data, adjusted=False, alpha=0.05
-                        )
+                        correlation_results[company_name] = {
+                            "Pearson Correlation": pearson_corr,
+                            "P-value": p_value,
+                        }
 
-                        # Determine significance, here significances are not OK, to check
-                        # significance = "***" if p_value and p_value < 0.05 else ""
-                        formatted_correlation = f"{corr}" if corr is not None else "N/A"
-
-                        # Store both correlation and significance under the same key
-                        correlation_results[base_name] = [
-                            formatted_correlation,
-                            pearson_corr,
-                            p_value,
-                        ]
-
+                        # Optional: Plot Cross-Correlation Function (CCF)
                         self.plot_ccf(
                             signal_data,
                             market_data,
                             lag_range=30,
-                            filename=base_name,
+                            filename=company_name,
                         )
 
-        # Create DataFrame with appropriate column names
-        return pd.DataFrame.from_dict(
-            correlation_results,
-            orient="index",
-            columns=[
-                "Cross-Correlation",
-                "Pearson Correlation (need to stationarize)",
-                "P-value",
-            ],
-        )
+        return pd.DataFrame.from_dict(correlation_results, orient="index")
+
 
     def save_results_to_excel(self, save_path):
         with pd.ExcelWriter(f"{save_path}daily_model_results.xlsx") as writer:
