@@ -415,8 +415,8 @@ if __name__ == "__main__":
     USERNAME_3 = os.getenv('USERNAME_3')
     PASSWORD_3 = os.getenv('PASSWORD_3')
 
-    RESEARCH = "stora enso"
-    SAVE_PATH = "./../data/new_webscrapping/"
+    RESEARCH = "altagas"
+    SAVE_PATH = "./../../data/new_webscrapping/"
     FILE_PATH = f'{SAVE_PATH}webscraped_{"_".join(RESEARCH.split())}.csv'
 
     # df = pd.read_csv(FILE_PATH)

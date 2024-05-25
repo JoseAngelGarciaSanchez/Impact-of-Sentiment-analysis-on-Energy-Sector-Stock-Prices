@@ -81,4 +81,4 @@ class LaunchSystem:
 
 if __name__ == "__main__":
     ls = LaunchSystem()
-    ls.company_process("webscraped_bhp_group")
+    ls.company_process("webscraped_totalenergies_se")
