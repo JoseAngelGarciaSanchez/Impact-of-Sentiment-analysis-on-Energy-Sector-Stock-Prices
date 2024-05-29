@@ -48,7 +48,9 @@ class LaunchSystem:
         df_processed = self._processing_tweets(df=df)
         df_predicted = self.sentimental_model.predict(df_processed)
 
-        df_processed.to_pickle(f"./../data/webscrapped/processed/twitter/{company_name}.pkl")
+        df_processed.to_pickle(
+            f"./../data/webscrapped/processed/twitter/{company_name}.pkl"
+        )
         df_predicted.to_csv(
             f"./../data/webscrapped/predicted/twitter/{company_name}.csv",
             index=False,
