@@ -1,5 +1,3 @@
-import sys
-
 import pandas as pd
 from transformers import pipeline
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -66,12 +64,3 @@ class SentimentalAnalysisModel:
         df["sentiment_base"] = df["TweetText"].map(lambda x: self.nlp2(x)[0]["label"])
 
         return df
-
-
-if __name__ == "__main__":
-    dataframe_path = sys.argv[1]
-    output_path = "./../data_model/" + dataframe_path.split("/")[-2]
-    model = SentimentalAnalysisModel()
-    df_predicted = model.predict(df)
-    print("Here is the result :)")
-    print(df)
