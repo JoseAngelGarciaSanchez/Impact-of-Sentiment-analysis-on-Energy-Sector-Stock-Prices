@@ -259,37 +259,60 @@ class DailyModelEvaluation(StatisticalTests):
         self.grouped_analysed_tweets = analysed_tweets.copy()
         self.adjusted_returns = returns.copy()
 
-        self.verbose = verbose
         self.strong_pos_threshold = 0.5
         self.strong_neg_threshold = -0.5
         self.neutral_threshold = 0.5
-        self.shortlongdf = None  # Initialize shortlongdf attribute
 
-    def update_thresholds(
+        self.market_pos_threshold = 0.05
+        self.market_neg_threshold = -0.05
+
+        self.verbose = verbose
+
+    def __update_thresholds(
         self, strong_pos_threshold, strong_neg_threshold, neutral_threshold
     ):
         self.strong_pos_threshold = strong_pos_threshold
         self.strong_neg_threshold = strong_neg_threshold
         self.neutral_threshold = neutral_threshold
 
-    def prediction_matches(self, signal, market_return):
+    def _prediction_matches(self, signal, market_return):
         if (
-            signal > self.strong_pos_threshold and market_return > 0
+            signal > self.strong_pos_threshold
+            and market_return > self.market_pos_threshold
         ):  # strong positive signal
-            return True
+            return "TP"
         elif (
-            signal < self.strong_neg_threshold and market_return < 0
+            signal < self.strong_neg_threshold
+            and market_return < self.market_neg_threshold
         ):  # strong negative signal
-            return True
+            return "TN"
         elif (
             -self.neutral_threshold <= signal <= self.neutral_threshold
-            and -0.05 <= market_return <= 0.05
+            and self.market_neg_threshold <= market_return <= self.market_pos_threshold
         ):  # neutral signal
-            return True
+            return "Neutral"
+        elif (
+            signal < self.strong_neg_threshold
+            and market_return > self.market_pos_threshold
+        ):  # strong negative signal
+            return "FN"
+        elif (
+            signal > self.strong_pos_threshold
+            and market_return < self.market_neg_threshold
+        ):  # strong negative signal
+            return "FP"
+        elif (
+            -self.neutral_threshold <= signal <= self.neutral_threshold
+            and market_return <= self.market_neg_threshold
+        ) or (
+            -self.neutral_threshold <= signal <= self.neutral_threshold
+            and market_return >= self.market_pos_threshold
+        ):  # neutral signal
+            return "Not neutral"
         else:
             return False
 
-    def short_or_long(self):
+    def _short_or_long(self):
         """new dataframe with buy or sell at t"""
 
         positive_ratios_by_day = self.grouped_analysed_tweets.copy()
@@ -309,9 +332,7 @@ class DailyModelEvaluation(StatisticalTests):
                 "positive_ratio"
             ].shift(1)
 
-            # faire log ou la difference premiere, test de racines unitaire
-            # pour voir si les moments sont invariants avec le temps
-
+            # adapt ratio from [0, 1] to [-1, 1]
             stock_ratios.loc[:, "buy_or_sell"] = (
                 stock_ratios["positive_ratio_shifted"] - 0.5
             ) * 2
@@ -319,11 +340,10 @@ class DailyModelEvaluation(StatisticalTests):
             # STOCK_RATIONS BETWEEN -1 and 1
             stock_ratios.set_index("yearmonthday", inplace=True)
 
-            self.stock_ratios = stock_ratios
             # saving info in a dataframe
             self.shortlongdf[company] = stock_ratios["buy_or_sell"]
 
-    def evaluate_model_accuracy(self):
+    def _evaluate_model_accuracy(self):
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
@@ -332,36 +352,70 @@ class DailyModelEvaluation(StatisticalTests):
         )
 
         accuracy_metrics = {}
-
-        def prediction_matches(signal, market_return):
-            if signal > 0.5 and market_return > 0:  # strong positive signal
-                return True
-            elif signal < -0.5 and market_return < 0:  # strong negative signal
-                return True
-            elif (
-                -0.5 <= signal <= 0.5 and -0.05 <= market_return <= 0.05
-            ):  # neutral signal
-                return True
-            else:
-                return False
+        companies = [
+            column.split("_buysell")[0]
+            for column in evaluation_df.columns
+            if column.endswith("_buysell")
+            and f"{column.split('_buysell')[0]}_market" in evaluation_df.columns
+        ]
 
         for _, row in evaluation_df.iterrows():
-            for column in evaluation_df.columns:
-                if "_buysell" in column:
-                    company_name = column.split("_buysell")[0]
-                    market_column = company_name + "_market"
+            for company in companies:
+                if company not in accuracy_metrics:
+                    accuracy_metrics[company] = {
+                        "correct_predictions": 0,
+                        "Neutral": 0,
+                        "Not neutral": 0,
+                        "TP": 0,
+                        "TN": 0,
+                        "FP": 0,
+                        "FN": 0,
+                        "total_signals": 0,
+                    }
 
-                    if market_column in evaluation_df.columns:
-                        if company_name not in accuracy_metrics:
-                            accuracy_metrics[company_name] = {
-                                "correct_predictions": 0,
-                                "total_signals": 0,
-                            }
+                accuracy_metrics[company]["total_signals"] += 1
 
-                        accuracy_metrics[company_name]["total_signals"] += 1
+                if (
+                    self._prediction_matches(
+                        row[f"{company}_buysell"], row[f"{company}_market"]
+                    )
+                ) == "TP":
+                    accuracy_metrics[company]["TP"] += 1
+                    accuracy_metrics[company]["correct_predictions"] += 1
+                elif (
+                    self._prediction_matches(
+                        row[f"{company}_buysell"], row[f"{company}_market"]
+                    )
+                ) == "TN":
+                    accuracy_metrics[company]["TN"] += 1
+                    accuracy_metrics[company]["correct_predictions"] += 1
+                elif (
+                    self._prediction_matches(
+                        row[f"{company}_buysell"], row[f"{company}_market"]
+                    )
+                ) == "FP":
+                    accuracy_metrics[company]["FP"] += 1
+                elif (
+                    self._prediction_matches(
+                        row[f"{company}_buysell"], row[f"{company}_market"]
+                    )
+                ) == "FN":
+                    accuracy_metrics[company]["FN"] += 1
+                elif (
+                    self._prediction_matches(
+                        row[f"{company}_buysell"], row[f"{company}_market"]
+                    )
+                ) == "Neutral":
+                    accuracy_metrics[company]["Neutral"] += 1
+                    accuracy_metrics[company]["correct_predictions"] += 1
+                elif (
+                    self._prediction_matches(
+                        row[f"{company}_buysell"], row[f"{company}_market"]
+                    )
+                ) == "Not neutral":
+                    accuracy_metrics[company]["Not neutral"] += 1
 
-                        if prediction_matches(row[column], row[market_column]):
-                            accuracy_metrics[company_name]["correct_predictions"] += 1
+        print(accuracy_metrics)
 
         return pd.DataFrame.from_dict(
             {
@@ -379,34 +433,17 @@ class DailyModelEvaluation(StatisticalTests):
         )
 
     def evaluate_model_accuracy_with_thresholds(self, thresholds):
-        self.short_or_long()  # Ensure shortlongdf is created
+        self._short_or_long()  # Ensure shortlongdf is created
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
         evaluation_df = self.shortlongdf.join(
             self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
         )
-        print(evaluation_df)
+
         results = []
         for strong_pos_threshold, strong_neg_threshold, neutral_threshold in thresholds:
             accuracy_metrics = {}
-
-            def prediction_matches(signal, market_return):
-                if (
-                    signal > strong_pos_threshold and market_return > 0
-                ):  # strong positive signal
-                    return True
-                elif (
-                    signal < strong_neg_threshold and market_return < 0
-                ):  # strong negative signal
-                    return True
-                elif (
-                    -neutral_threshold <= signal <= neutral_threshold
-                    and -0.05 <= market_return <= 0.05
-                ):  # neutral signal
-                    return True
-                else:
-                    return False
 
             for _, row in evaluation_df.iterrows():
                 for column in evaluation_df.columns:
@@ -423,7 +460,9 @@ class DailyModelEvaluation(StatisticalTests):
 
                             accuracy_metrics[company_name]["total_signals"] += 1
 
-                            if prediction_matches(row[column], row[market_column]):
+                            if self._prediction_matches(
+                                row[column], row[market_column]
+                            ):
                                 accuracy_metrics[company_name][
                                     "correct_predictions"
                                 ] += 1
@@ -460,8 +499,8 @@ class DailyModelEvaluation(StatisticalTests):
         Compute correlation between lagged NLP scores (buy/sell signals)
         and market returns based on a 0.5 threshold for each date.
         """
-        self.update_thresholds(0.5, -0.5, 0.5)  # Set thresholds to 0.5
-        self.short_or_long()  # Ensure shortlongdf is created
+        self.__update_thresholds(0.5, -0.5, 0.5)  # Set thresholds to 0.5
+
         self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
         self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
 
@@ -514,7 +553,9 @@ class DailyModelEvaluation(StatisticalTests):
 
     def save_results_to_excel(self, save_path):
         with pd.ExcelWriter(f"{save_path}daily_model_results.xlsx") as writer:
-            self.evaluate_model_accuracy().to_excel(writer, sheet_name="Model Accuracy")
+            self._evaluate_model_accuracy().to_excel(
+                writer, sheet_name="Model Accuracy"
+            )
             self.compute_signal_market_correlation().to_excel(
                 writer, sheet_name="Signal Market Correlation"
             )
@@ -587,8 +628,8 @@ class DailyModelEvaluation(StatisticalTests):
 
     def launch(self):
 
-        self.short_or_long()
-        self.evaluate_model_accuracy()
+        self._short_or_long()
+        self._evaluate_model_accuracy()
         self.compute_signal_market_correlation()
         self.save_results_to_excel(save_path=self.save_path)
         self.visualize_courbe(save_path=self.save_path)
