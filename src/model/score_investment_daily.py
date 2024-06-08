@@ -263,8 +263,8 @@ class DailyModelEvaluation(StatisticalTests):
         self.strong_neg_threshold = -0.5
         self.neutral_threshold = 0.5
 
-        self.market_pos_threshold = 0.05
-        self.market_neg_threshold = -0.05
+        self.market_pos_threshold = 0.02
+        self.market_neg_threshold = -0.02
 
         self.verbose = verbose
 
@@ -455,7 +455,33 @@ class DailyModelEvaluation(StatisticalTests):
                         * 100
                         if metrics["total_signals"] > 0
                         else 0
-                    )
+                    ),
+                    "Recall": (
+                        (
+                            metrics["TP"]
+                            / (
+                                metrics["TP"]
+                                + metrics["Negative-Positive"]
+                                + metrics["Neutral-Positive"]
+                            )
+                        )
+                        * 100
+                        if metrics["total_signals"] > 0
+                        else 0
+                    ),
+                    "Precision": (
+                        (
+                            metrics["TP"]
+                            / (
+                                metrics["TP"]
+                                + metrics["Positive-Neutral"]
+                                + metrics["Positive-Negative"]
+                            )
+                        )
+                        * 100
+                        if metrics["total_signals"] > 0
+                        else 0
+                    ),
                 }
                 for stock, metrics in accuracy_metrics.items()
             },
@@ -498,7 +524,7 @@ class DailyModelEvaluation(StatisticalTests):
 
                             if self._prediction_matches(
                                 row[column], row[market_column]
-                            ) in ['TP', 'TN', 'TNeutral']:
+                            ) in ["TP", "TN", "TNeutral"]:
                                 accuracy_metrics[company_name][
                                     "correct_predictions"
                                 ] += 1
