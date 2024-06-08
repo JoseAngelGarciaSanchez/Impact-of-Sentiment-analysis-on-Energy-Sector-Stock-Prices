@@ -9,7 +9,7 @@ import statsmodels.api as sm
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import adfuller, kpss
 
-from parameters import company_to_stock_dict
+from parameters import company_to_stock_dict, market_averages, market_min, market_max
 
 
 np.random.seed(42)
@@ -268,12 +268,18 @@ class DailyModelEvaluation(StatisticalTests):
 
         self.verbose = verbose
 
-    def __update_thresholds(
+    def _update_thresholds(
         self, strong_pos_threshold, strong_neg_threshold, neutral_threshold
     ):
         self.strong_pos_threshold = strong_pos_threshold
         self.strong_neg_threshold = strong_neg_threshold
         self.neutral_threshold = neutral_threshold
+
+    def __update_market_thresholds(
+        self, positive_threshold: float, negative_threshold: float
+    ) -> None:
+        self.market_pos_threshold = positive_threshold
+        self.market_neg_threshold = negative_threshold
 
     def _prediction_matches(self, signal, market_return):
         if (
@@ -372,6 +378,10 @@ class DailyModelEvaluation(StatisticalTests):
         ]
         for _, row in evaluation_df.iterrows():
             for company in companies:
+                self.__update_market_thresholds(
+                    market_averages[company], -1 * (market_averages[company])
+                )
+
                 if company not in accuracy_metrics:
                     accuracy_metrics[company] = {
                         "correct_predictions": 0,
@@ -456,32 +466,9 @@ class DailyModelEvaluation(StatisticalTests):
                         if metrics["total_signals"] > 0
                         else 0
                     ),
-                    "Recall": (
-                        (
-                            metrics["TP"]
-                            / (
-                                metrics["TP"]
-                                + metrics["Negative-Positive"]
-                                + metrics["Neutral-Positive"]
-                            )
-                        )
-                        * 100
-                        if metrics["total_signals"] > 0
-                        else 0
-                    ),
-                    "Precision": (
-                        (
-                            metrics["TP"]
-                            / (
-                                metrics["TP"]
-                                + metrics["Positive-Neutral"]
-                                + metrics["Positive-Negative"]
-                            )
-                        )
-                        * 100
-                        if metrics["total_signals"] > 0
-                        else 0
-                    ),
+                    "Market threshold": market_averages[stock],
+                    "Market min": market_min[stock],
+                    "Market max": market_max[stock],
                 }
                 for stock, metrics in accuracy_metrics.items()
             },
@@ -489,72 +476,6 @@ class DailyModelEvaluation(StatisticalTests):
         )
 
         return df_accuracy, accuracy_metrics
-
-    def evaluate_model_accuracy_with_thresholds(self, thresholds):
-        self._short_or_long()  # Ensure shortlongdf is created
-        self.adjusted_returns.index = pd.to_datetime(self.adjusted_returns["date"])
-        self.shortlongdf.index = pd.to_datetime(self.shortlongdf.index)
-
-        evaluation_df = self.shortlongdf.join(
-            self.adjusted_returns, how="inner", lsuffix="_buysell", rsuffix="_market"
-        )
-
-        results = []
-        for strong_pos_threshold, strong_neg_threshold, neutral_threshold in thresholds:
-            self.__update_thresholds(
-                strong_pos_threshold, strong_neg_threshold, neutral_threshold
-            )
-
-            accuracy_metrics = {}
-
-            for _, row in evaluation_df.iterrows():
-                for column in evaluation_df.columns:
-                    if "_buysell" in column:
-                        company_name = column.split("_buysell")[0]
-                        market_column = company_name + "_market"
-
-                        if market_column in evaluation_df.columns:
-                            if company_name not in accuracy_metrics:
-                                accuracy_metrics[company_name] = {
-                                    "correct_predictions": 0,
-                                    "total_signals": 0,
-                                }
-
-                            accuracy_metrics[company_name]["total_signals"] += 1
-
-                            if self._prediction_matches(
-                                row[column], row[market_column]
-                            ) in ["TP", "TN", "TNeutral"]:
-                                accuracy_metrics[company_name][
-                                    "correct_predictions"
-                                ] += 1
-
-            accuracy_df = pd.DataFrame.from_dict(
-                {
-                    stock: {
-                        "Accuracy (%)": (
-                            (metrics["correct_predictions"] / metrics["total_signals"])
-                            * 100
-                            if metrics["total_signals"] > 0
-                            else 0
-                        )
-                    }
-                    for stock, metrics in accuracy_metrics.items()
-                },
-                orient="index",
-            )
-
-            mean_accuracy = accuracy_df["Accuracy (%)"].mean()
-            results.append(
-                {
-                    "strong_pos_threshold": strong_pos_threshold,
-                    "strong_neg_threshold": strong_neg_threshold,
-                    "neutral_threshold": neutral_threshold,
-                    "mean_accuracy": mean_accuracy,
-                }
-            )
-
-        return pd.DataFrame(results)
 
     def compute_signal_market_correlation(self):
         """
@@ -727,7 +648,7 @@ class DailyModelEvaluation(StatisticalTests):
         for sensitivity_threshold in sensitivity_thresholds:
             positive, negative, neutral = sensitivity_threshold
 
-            self.__update_thresholds(positive, negative, neutral)
+            self._update_thresholds(positive, negative, neutral)
 
             accuracy_df, metrics_df = self._evaluate_model_accuracy()
             self.compute_signal_market_correlation()
@@ -737,13 +658,28 @@ class DailyModelEvaluation(StatisticalTests):
             self.visualize_courbe(save_path=self.save_path)
 
 
-def sensitivity_analysis(thresholds, grouped_analysed_tweets, df_returns, save_path):
+def sensitivity_analysis(
+    sensitivity_thresholds, grouped_analysed_tweets, df_returns, save_path
+):
     model_evaluator = DailyModelEvaluation(
         grouped_analysed_tweets, df_returns, save_path=save_path, verbose=False
     )
     model_evaluator._short_or_long()
-    results = model_evaluator.evaluate_model_accuracy_with_thresholds(thresholds)
-    return results
+    results = []
+    for sensitivity_threshold in thresholds:
+        positive, negative, neutral = sensitivity_threshold
+        model_evaluator._update_thresholds(positive, negative, neutral)
+        accuracy_df, metrics = model_evaluator._evaluate_model_accuracy()
+        mean_accuracy = accuracy_df["Accuracy (%)"].mean()
+        results.append(
+            {
+                "strong_pos_threshold": positive,
+                "strong_neg_threshold": negative,
+                "neutral_threshold": neutral,
+                "mean_accuracy": mean_accuracy,
+            }
+        )
+    return pd.DataFrame(results)
 
 
 def plot_sensitivity_analysis(results, save_path):
@@ -805,6 +741,7 @@ if __name__ == "__main__":
         df_returns,
         save_path="./../../data/results/daily_model/",
     )
+
     # Save plot
     plot_sensitivity_analysis(results, save_path="./../../data/results/daily_model/")
     # Optionally, continue with the normal evaluation process using default thresholds
