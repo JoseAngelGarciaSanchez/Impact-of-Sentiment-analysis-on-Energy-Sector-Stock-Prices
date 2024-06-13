@@ -441,6 +441,9 @@ if __name__ == "__main__":
         webscrapped_data=analysed_webscrapped_tweets, stock_returns=df_returns
     )
 
+    print(df_returns_processed)
+
+    print(analysed_webscrapped_tweets_processed)
     model_evaluator = MonthlyModelEvaluation(
         webscrapped_data_processed=analysed_webscrapped_tweets_processed,
         stock_returns_processed=df_returns_processed,
