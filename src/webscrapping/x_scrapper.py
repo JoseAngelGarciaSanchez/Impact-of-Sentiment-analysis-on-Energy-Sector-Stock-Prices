@@ -1,20 +1,18 @@
 import csv
-from datetime import date, datetime
 import os
 import random
 import urllib
+from datetime import date, datetime
 from time import sleep
 
 from selenium import webdriver
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    StaleElementReferenceException,
-)
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import (NoSuchElementException,
+                                        StaleElementReferenceException)
 from selenium.webdriver import Chrome
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class TwitterScrapper:
@@ -399,8 +397,8 @@ if __name__ == "__main__":
     import os
     from time import sleep, time
 
-    from dotenv import load_dotenv
     import pandas as pd
+    from dotenv import load_dotenv
 
     load_dotenv()
     MAIL_1 = os.getenv('MAIL_1')

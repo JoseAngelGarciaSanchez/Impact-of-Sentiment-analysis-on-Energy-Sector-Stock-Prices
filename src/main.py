@@ -2,8 +2,8 @@ import os
 
 import pandas as pd
 
-from model.sentimental_model import SentimentalAnalysisModel
 from model.parameters import concatenated_info
+from model.sentimental_model import SentimentalAnalysisModel
 from preprocessing.preprocessing import PreprocessorPipeline
 
 

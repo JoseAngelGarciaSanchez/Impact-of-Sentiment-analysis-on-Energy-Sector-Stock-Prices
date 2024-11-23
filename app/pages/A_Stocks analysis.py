@@ -1,6 +1,6 @@
 import pandas as pd
-from PIL import Image
 import streamlit as st
+from PIL import Image
 
 # Layout
 twt_logo = Image.open('./app/images/twitter-logo.png')

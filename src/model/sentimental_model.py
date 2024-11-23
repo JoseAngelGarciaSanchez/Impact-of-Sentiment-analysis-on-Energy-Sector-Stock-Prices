@@ -1,6 +1,6 @@
 import pandas as pd
-from transformers import pipeline
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import (AutoModelForSequenceClassification, AutoTokenizer,
+                          pipeline)
 
 
 class SentimentalAnalysisModel:

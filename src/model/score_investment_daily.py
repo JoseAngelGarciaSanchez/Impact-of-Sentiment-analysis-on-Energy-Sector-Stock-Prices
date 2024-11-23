@@ -1,16 +1,15 @@
 import os
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr
 import statsmodels.api as sm
+from matplotlib.ticker import MaxNLocator
+from parameters import (company_to_stock_dict, market_averages, market_max,
+                        market_min)
+from scipy.stats import pearsonr
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import adfuller, kpss
-
-from parameters import company_to_stock_dict, market_averages, market_min, market_max
-
 
 np.random.seed(42)
 pd.options.mode.chained_assignment = None

@@ -2,14 +2,13 @@ from collections import Counter
 
 import matplotlib.pyplot as plt
 import nltk
-from nltk.corpus import stopwords
 import pandas as pd
-from PIL import Image
 import plotly.express as px
 import seaborn as sns
 import streamlit as st
+from nltk.corpus import stopwords
+from PIL import Image
 from wordcloud import WordCloud
-
 
 # Global Variables
 DATE_COLUMN = "DATE"
