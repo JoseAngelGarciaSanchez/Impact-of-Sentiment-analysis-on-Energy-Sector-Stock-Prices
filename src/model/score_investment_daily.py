@@ -259,12 +259,9 @@ class DailyModelEvaluation(StatisticalTests):
         self.grouped_analysed_tweets = analysed_tweets.copy()
         self.adjusted_returns = returns.copy()
 
-        self.strong_pos_threshold = 0.5
-        self.strong_neg_threshold = -0.5
-        self.neutral_threshold = 0.5
-
-        self.market_pos_threshold = 0.02
-        self.market_neg_threshold = -0.02
+        # self.strong_pos_threshold = 0.5
+        # self.strong_neg_threshold = -0.5
+        # self.neutral_threshold = 0.5
 
         self.verbose = verbose
 
@@ -376,26 +373,27 @@ class DailyModelEvaluation(StatisticalTests):
             if column.endswith("_buysell")
             and f"{column.split('_buysell')[0]}_market" in evaluation_df.columns
         ]
+
+        for company in companies:
+            accuracy_metrics[company] = {
+                "correct_predictions": 0,
+                "TNeutral": 0,
+                "TP": 0,
+                "TN": 0,
+                "Neutral-Positive": 0,
+                "Neutral-Negative": 0,
+                "Positive-Neutral": 0,
+                "Positive-Negative": 0,
+                "Negative-Positive": 0,
+                "Negative-Neutral": 0,
+                "total_signals": 0,
+            }
+
         for _, row in evaluation_df.iterrows():
             for company in companies:
                 self.__update_market_thresholds(
                     market_averages[company], -1 * (market_averages[company])
                 )
-
-                if company not in accuracy_metrics:
-                    accuracy_metrics[company] = {
-                        "correct_predictions": 0,
-                        "TNeutral": 0,
-                        "TP": 0,
-                        "TN": 0,
-                        "Neutral-Positive": 0,
-                        "Neutral-Negative": 0,
-                        "Positive-Neutral": 0,
-                        "Positive-Negative": 0,
-                        "Negative-Positive": 0,
-                        "Negative-Neutral": 0,
-                        "total_signals": 0,
-                    }
 
                 accuracy_metrics[company]["total_signals"] += 1
 
@@ -461,10 +459,23 @@ class DailyModelEvaluation(StatisticalTests):
             {
                 stock: {
                     "Accuracy (%)": (
-                        (metrics["correct_predictions"] / metrics["total_signals"])
+                        (
+                            metrics["correct_predictions"]
+                            / (
+                                metrics["TP"]
+                                + metrics["TNeutral"]
+                                + metrics["TN"]
+                                + metrics["Positive-Negative"]
+                                + metrics["Positive-Neutral"]
+                                + metrics["Neutral-Positive"]
+                                + metrics["Neutral-Negative"]
+                                + metrics["Negative-Positive"]
+                                + metrics["Negative-Neutral"]
+                            )
+                        )
                         * 100
                         if metrics["total_signals"] > 0
-                        else 0
+                        else np.nan
                     ),
                     "Market threshold": market_averages[stock],
                     "Market min": market_min[stock],
@@ -666,7 +677,7 @@ def sensitivity_analysis(
     )
     model_evaluator._short_or_long()
     results = []
-    for sensitivity_threshold in thresholds:
+    for sensitivity_threshold in sensitivity_thresholds:
         positive, negative, neutral = sensitivity_threshold
         model_evaluator._update_thresholds(positive, negative, neutral)
         accuracy_df, metrics = model_evaluator._evaluate_model_accuracy()
@@ -703,13 +714,6 @@ if __name__ == "__main__":
         "./../../data/webscrapped/predicted/twitter/concatenated_prediction.csv"
     )
     DAILY_STOCKS_RETURNS_PATH = "./../../data/stocks_daily_data.xlsx"
-    analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
-    df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
-
-    preprocessor = Preprocessing()
-    grouped_analysed_tweets, df_returns = preprocessor.process(
-        analysed_tweets, df_returns
-    )
 
     # Define a range of threshold values for analysis
     thresholds = [
@@ -733,6 +737,19 @@ if __name__ == "__main__":
         (0.95, -0.95, 0.95),
         (1.0, -1.0, 1.0),
     ]
+
+    analysed_tweets = pd.read_csv(WEBSCRAPPED_DATA_PATH)
+    df_returns = pd.read_excel(DAILY_STOCKS_RETURNS_PATH, index_col=0)
+
+    # # for year launch
+    # for year in [2018, 2019, 2020, 2021, 2022, 2023]:
+    #     analysed_tweets = analysed_tweets[pd.to_datetime(analysed_tweets['PostDate']).dt.year == year]
+    #     df_returns = df_all_returns[df_all_returns.index.year == year]
+
+    preprocessor = Preprocessing()
+    grouped_analysed_tweets, df_returns = preprocessor.process(
+        analysed_tweets, df_returns
+    )
 
     # Run sensitivity analysis
     results = sensitivity_analysis(
