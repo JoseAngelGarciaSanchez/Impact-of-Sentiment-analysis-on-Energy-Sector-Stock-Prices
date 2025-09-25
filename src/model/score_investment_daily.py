@@ -131,10 +131,8 @@ class StatisticalTests:
         self.save_path = save_path
 
     def dickey_fuller_test(self, series: pd.Series):
-        # Perform Dickey-Fuller test
         result = adfuller(series)
 
-        # Output the results
         print("ADF Statistic:", result[0])
         print("p-value:", result[1])
         print("Critical Values:")
@@ -275,16 +273,16 @@ class DailyModelEvaluation(StatisticalTests):
     def prediction_matches(self, signal, market_return):
         if (
             signal > self.strong_pos_threshold and market_return > 0
-        ):  # strong positive signal
+        ):
             return True
         elif (
             signal < self.strong_neg_threshold and market_return < 0
-        ):  # strong negative signal
+        ):
             return True
         elif (
             -self.neutral_threshold <= signal <= self.neutral_threshold
             and -0.05 <= market_return <= 0.05
-        ):  # neutral signal
+        ):
             return True
         else:
             return False
@@ -632,7 +630,6 @@ if __name__ == "__main__":
         analysed_tweets, df_returns
     )
 
-    # Define a range of threshold values for analysis
     thresholds = [
         (0.1, -0.1, 0.1),
         (0.15, -0.15, 0.15),
@@ -655,7 +652,6 @@ if __name__ == "__main__":
         (1.0, -1.0, 1.0),
     ]
 
-    # Run sensitivity analysis
     results = sensitivity_analysis(
         thresholds,
         grouped_analysed_tweets,
