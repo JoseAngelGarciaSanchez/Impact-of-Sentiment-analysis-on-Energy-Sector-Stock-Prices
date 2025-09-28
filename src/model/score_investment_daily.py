@@ -20,19 +20,15 @@ class Preprocessing:
     def __init__(self) -> None:
         pass
 
-    def __process_analysed_tweets(self, df: pd.DataFrame):
-        # Format PostDate to datetime
+    def __cast_postdate_and_sentiments(self, df: pd.DataFrame):
+        
         df["PostDate"] = pd.to_datetime(df["PostDate"])
-
-        # drop rows with NaN values in the "PostDate" column
         df.dropna(subset=["PostDate"], inplace=True)
 
-        # add a column for the year and month
         df["day"] = df["PostDate"].dt.day
         df["month"] = df["PostDate"].dt.month
         df["year"] = df["PostDate"].dt.year
 
-        # formatting sentiments
         df["sentiment"] = df["sentiment"].map({"Bullish": 1, "Bearish": -1})
         df["sentiment_base"] = df["sentiment_base"].map(
             {"positive": 1, "neutral": 0, "negative": -1}
@@ -46,6 +42,35 @@ class Preprocessing:
         nan_mask = df.isna().all(axis=1)
         df = df.loc[~nan_mask, :]
         return df
+    
+    def __group_finbert_results(self, df: pd.DataFrame) -> pd.DataFrame:
+        grouped = df.groupby(["year", "month", "day", "company"])
+
+        sentiment_positive_tweets_by_day = grouped["sentiment"].apply(
+            lambda x: (x == 1).sum()
+        )
+        sentiment_negative_tweets_by_day = grouped["sentiment"].apply(
+            lambda x: (x == -1).sum()
+        )
+
+        positive_ratios_by_day = (
+         sentiment_positive_tweets_by_day
+        ) / (
+            sentiment_positive_tweets_by_day
+            + sentiment_negative_tweets_by_day
+        )
+        positive_ratios_by_day = positive_ratios_by_day.reset_index()
+
+        positive_ratios_by_day.rename(columns={"sentiment": "positive_ratio"}, inplace=True)
+        positive_ratios_by_day["yearmonthday"] = (
+            positive_ratios_by_day["year"].astype(str)
+            + "-"
+            + positive_ratios_by_day["month"].astype(str).str.zfill(2)
+            + "-"
+            + positive_ratios_by_day["day"].astype(str).str.zfill(2)
+        )
+
+        return positive_ratios_by_day
 
     def __group_model_results(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -117,8 +142,9 @@ class Preprocessing:
         return selected_returns
 
     def process(self, analysed_tweets: pd.DataFrame, returns: pd.DataFrame):
-        analysed_tweets = self.__process_analysed_tweets(analysed_tweets)
-        grouped_analysed_tweets = self.__group_model_results(analysed_tweets)
+        analysed_tweets = self.__cast_postdate_and_sentiments(analysed_tweets)
+        # grouped_analysed_tweets = self.__group_model_results(analysed_tweets)
+        grouped_analysed_tweets = self.__group_finbert_results(analysed_tweets)
 
         returns = self.__process_returns(returns)
         returns = self.__adjust_returns_with_company_names(returns)
