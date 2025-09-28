@@ -9,7 +9,7 @@ import statsmodels.api as sm
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import adfuller, kpss
 
-from parameters import company_to_stock_dict
+from src.model.parameters import company_to_stock_dict
 
 
 np.random.seed(42)
