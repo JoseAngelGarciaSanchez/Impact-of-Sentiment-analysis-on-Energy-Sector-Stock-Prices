@@ -17,9 +17,9 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver import Chrome
 
 
-class TwitterScrapper:
+class TwitterScraper:
     """
-    X/Twitter Scrapper for 2024
+    X/Twitter Scraper for 2024
     """
 
     def __init__(
@@ -332,8 +332,6 @@ class TwitterScrapper:
                 print("No like buttons found")
         except Exception as e:
             print(f"Error during liking tweets: {str(e)}")
-
-            
 
     def _scroll_and_save(self, driver, save_path):
 

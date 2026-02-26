@@ -32,25 +32,31 @@ class SentimentalAnalysisModel:
 
         # Implementing the first model
         self.tokenizer1 = AutoTokenizer.from_pretrained(
-            "tarnformnet/Stock-Sentiment-BERT"
-            # "tarnformnet/Stock-Sentiment-Bert"
+            "tarnformnet/Stock-Sentiment-Bert"
         )
         self.model1 = AutoModelForSequenceClassification.from_pretrained(
-            "tarnformnet/Stock-Sentiment-BERT", from_tf=True
+            "tarnformnet/Stock-Sentiment-Bert", 
+            from_tf=True,
+            trust_remote_code=True,
+            low_cpu_mem_usage=True
         )
         self.nlp1 = pipeline(
             "sentiment-analysis",
-            model="tarnformnet/Stock-Sentiment-BERT",
-            tokenizer="tarnformnet/Stock-Sentiment-BERT",
+            model=self.model1,
+            tokenizer=self.tokenizer1
         )
 
         # Implementing the second model
         self.tokenizer2 = AutoTokenizer.from_pretrained("ProsusAI/finbert")
         self.model2 = AutoModelForSequenceClassification.from_pretrained(
-            "ProsusAI/finbert"
+            "ProsusAI/finbert",
+            trust_remote_code=True,
+            low_cpu_mem_usage=True
         )
         self.nlp2 = pipeline(
-            "sentiment-analysis", model="ProsusAI/finbert", tokenizer="ProsusAI/finbert"
+            "sentiment-analysis", 
+            model=self.model2, 
+            tokenizer=self.tokenizer2
         )
 
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -67,11 +73,3 @@ class SentimentalAnalysisModel:
 
         return df
 
-
-if __name__ == "__main__":
-    dataframe_path = sys.argv[1]
-    output_path = "./../data_model/" + dataframe_path.split("/")[-2]
-    model = SentimentalAnalysisModel()
-    df_predicted = model.predict(df)
-    print("Here is the result :)")
-    print(df)
